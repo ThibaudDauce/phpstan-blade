@@ -89,7 +89,7 @@ class BladeRule implements Rule
 
         // TODO: maybe make sure this function is coming from Laravel
 
-        if (count($funcCall->getArgs()) < 1) return [];
+        if (count($funcCall->getArgs()) === 0) return [];
 
         $template = $funcCall->getArgs()[0]->value;
 
@@ -99,18 +99,22 @@ class BladeRule implements Rule
 
         $args = $funcCall->getArgs();
 
-        if (count($args) !== 2) {
+        if (count($args) === 1) {
             $parameters_array = new Node\Expr\Array_();
-        } else {
+        } elseif (count($args) === 2) {
             if ($args[1]->value instanceof Node\Expr\Array_) {
                 $parameters_array = $args[1]->value;
             } else {
                 // TODO disable compact.
                 $parameters_array = new Node\Expr\Array_();
             }
+        } else {
+            throw new Exception("Cannot call view with " . count($args) . " arguments");
         }
 
         $variables_and_types = $this->templateVariableTypesResolver->resolveArray($parameters_array, $scope);
+
+        // Fix $this type
         foreach ($variables_and_types as $i => $variable_type) {
             $type = $variable_type->getType();
             if ($type instanceof ThisType) {
