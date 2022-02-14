@@ -1,0 +1,23 @@
+{
+    "name": "thibaud-dauce/phpstan-blade",
+    "autoload": {
+        "psr-4": {
+            "ThibaudDauce\\PHPStanBlade\\": "src/"
+        }
+    },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/phpstan/phpstan-src.git"
+        }
+    ],
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "require": {
+        "laravel/framework": "^9.0",
+        "symplify/template-phpstan-compiler": "^10.1.x-dev",
+        "canvural/phpstan-blade-rule": "^0.2.0",
+        "phpstan/phpstan": "^1.4",
+        "nikic/php-parser": "^4.13"
+    }
+}
