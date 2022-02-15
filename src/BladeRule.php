@@ -17,8 +17,11 @@ use PhpParser\NodeTraverser;
 use PhpParser\ParserFactory;
 use PHPStan\Rules\RuleError;
 use PHPStan\Type\ObjectType;
+use PhpParser\Node\Stmt\Echo_;
+use PhpParser\Node\Expr\Array_;
 use PhpParser\ConstExprEvaluator;
 use PhpParser\Node\Expr\FuncCall;
+use PhpParser\Node\Scalar\String_;
 use PhpParser\NodeVisitorAbstract;
 use PHPStan\Rules\RuleErrorBuilder;
 use Illuminate\Support\ViewErrorBag;
@@ -28,6 +31,7 @@ use Illuminate\View\ViewFinderInterface;
 use PhpParser\ConstExprEvaluationException;
 use Illuminate\View\Compilers\BladeCompiler;
 use PHPStan\Type\Constant\ConstantStringType;
+use ThibaudDauce\PHPStanBlade\PHPVisitors\ReplaceIncludes;
 use Symplify\TemplatePHPStanCompiler\ValueObject\VariableAndType;
 use Symplify\TemplatePHPStanCompiler\PHPStan\FileAnalyserProvider;
 use Symplify\TemplatePHPStanCompiler\NodeFactory\VarDocNodeFactory;
@@ -254,52 +258,87 @@ class BladeRule implements Rule
      */
     private function process_view(Scope $scope, FuncCall $node, string $view_name, array $variables_and_types): array
     {
+        // We use Laravel to find the path to the Blade view.
+        $view_path = $this->view_finder()->find($view_name);
+
         /**
          * This function will analyse the Blade view to find errors.
          * The main complexity is to prepare the file to keep the view name and the file number information (so we can
          * repport the error at the right location).
          */
-
-
-        // We use Laravel to find the path to the Blade view.
-        $view_path = $this->view_finder()->find($view_name);
+        $html_and_php_content = $this->get_php_and_html_content($scope, $view_name, $view_path);
 
         /**
-         * There is some problems with the PHPStan cache, if you want more information go inside the CacheManager class
-         * but it's not required to understand the `process_view` function.
+         * First we'll try to find all includes and recursivly add them inside the PHP content.
          */
-        $this->cache_manager->add_dependency_to_view_file($scope->getFile(), $view_path);
+        while (true) {
+            preg_match('#<\?php echo \$__env->make\((.+?), \\\Illuminate\\\Support\\\Arr::except\(get_defined_vars\(\), \[\'__data\', \'__path\']\)\)->render\(\); \?>#s', $html_and_php_content, $matches, PREG_OFFSET_CAPTURE);
 
-        /**
-         * We get the Blade content, if the file doesn't exists, Larastan should catch this, so we return no errors here.
-         * If there is no content inside the view file, there is no error possible so return early.
-         */
-        if (! file_exists($view_path)) return [];
+            if (! $matches) break; // No more includes
 
-        $blade_content = file_get_contents($view_path);
-        if (! $blade_content) return [];
+            $include_php = $matches[0][0];
+            $include_statements = $this->parser->parse($include_php);
+            if (! $include_statements) throw new Exception("Cannot parse PHP code for include {$include_php}.");
+            if (count($include_statements) !== 1) throw new Exception("PHP code for include is not one statement {$include_php}.");
+            
+            $include_statement = $include_statements[0];
+            if (! ($include_statement instanceof Echo_)) throw new Exception("PHP code for include is not one echo statement {$include_php}.");
 
-        /**
-         * We add a comment before each Blade line with the view name and the line.
-         */
-        $blade_lines = explode(PHP_EOL, $blade_content);
+            $render_method_call = $include_statement->exprs[0];
+            if ($render_method_call->name->name !== 'render') throw new Exception();
 
-        $blade_lines_with_lines_numbers = [];
-        foreach ($blade_lines as $i => $line) {
-            $line_number = $i + 1;
-            $blade_lines_with_lines_numbers[$i] = "/** view_name: {$view_name}, view_path: {$view_path}, line: {$line_number} */{$line}";
+            $make_method_call = $render_method_call->var;
+            if ($make_method_call->name->name !== 'make') throw new Exception();
+
+            $args = $make_method_call->getArgs();
+            if (count($args) === 0 || count($args) === 1) {
+                throw new Exception;
+            } elseif (count($args) === 2) {
+                $first_parameter = $args[0];
+            } elseif (count($args) === 3) {
+                $first_parameter = $args[0];
+                $second_parameter = $args[1];
+            } else {
+                throw new Exception;
+            }
+
+            if (! ($first_parameter->value instanceof String_)) {
+                $html_and_php_content = substr_replace($html_and_php_content, '', $matches[0][1], strlen($matches[0][0]));
+                continue;
+            }
+
+            $include_view_name = $first_parameter->value->value;
+            $include_view_path = $this->view_finder()->find($include_view_name);
+
+
+            $variables_definitions = [];
+            $variables_reseting = [];
+            if (isset($second_parameter)) {
+                if (! ($second_parameter->value instanceof Array_)) throw new Exception("Second parameter to @include should be an array {$include_php}.");
+    
+                $variables = $second_parameter->value->items;
+    
+                $variables_definitions = [];
+                $variables_reseting    = [];
+                foreach ($variables as $array_item) {
+                    if (! $array_item) continue;
+                    if (! ($array_item->key instanceof String_)) continue;
+    
+                    $variableName          = $array_item->key->value;
+                    $temporaryVariableName = '__previous' . ucfirst($variableName);
+                    $phpExpression         = $this->printerStandard->prettyPrintExpr($array_item->value);
+    
+                    $variables_definitions[] = sprintf('<?php if (isset($%s)) { $%s = $%s; } ?>', $variableName, $temporaryVariableName, $variableName);
+                    $variables_definitions[] = sprintf('<?php $%s = %s; ?>', $variableName, $phpExpression);
+    
+                    $variables_reseting[] = sprintf('<?php if (isset($%s)) { $%s = $%s; } else { unset($%s); } ?>', $temporaryVariableName, $variableName, $temporaryVariableName, $variableName);
+                }
+            }
+
+            $include_php_and_html_content = PHP_EOL . implode(PHP_EOL, $variables_definitions) . PHP_EOL . $this->get_php_and_html_content($scope, $include_view_name, $include_view_path) . PHP_EOL . implode(PHP_EOL, $variables_reseting) . PHP_EOL;
+
+            $html_and_php_content = substr_replace($html_and_php_content, $include_php_and_html_content, $matches[0][1], strlen($matches[0][0]));
         }
-
-        $blade_content_with_lines_numbers = implode(PHP_EOL, $blade_lines_with_lines_numbers);
-
-
-        /**
-         * The Blade compiler will return us a mix of HTML and PHP.
-         * Almost each line will have the comment with view name and line number at the beginning
-         * but if one Blade line is compiled to multiple PHP lines the comment is only present on the first line.
-         */
-        $html_and_php_content = $this->blade_compiler()->compileString($blade_content_with_lines_numbers);
-
 
         /**
          * Ok. This is the hard part.
@@ -338,15 +377,6 @@ class BladeRule implements Rule
 
             while (true) {
                 if ($inside_php) {
-                    /**
-                     * Here we'll first try to match an include.
-                     */
-                    preg_match('#\s*\$__env->make\(\'(.*?)\',( \[(.*?)?],)? \\\Illuminate\\\Support\\\Arr::except\(get_defined_vars\(\), \[\'__data\', \'__path\']\)\)->render\(\)#s', $tail, $matches);
-                    // dump($tail);
-                    // if ($matches) {
-                    //     dump($matches);
-                    // }
-
                     preg_match('#(?P<php>.*?)\?>(?P<tail>.*)#', $tail, $matches);
                     if (! $matches) {
                         // All the tail is PHP. Saving the line and going to the next line.
@@ -396,13 +426,12 @@ class BladeRule implements Rule
 
         $php_content = implode(PHP_EOL, $php_content_lines);
 
-
         /**
          * We will store our PHP result inside a custom temp folder.
          * If the folder doesn't exists, let's create it.
          */
         $cache_folder = sys_get_temp_dir() . '/phpstan-blade/';
-        $cache_file_name =  md5($scope->getFile()) . '-blade-compiled.php';
+        $cache_file_name =  md5($view_path) . '-blade-compiled.php';
 
         $tmp_file_path = "{$cache_folder}{$cache_file_name}";
         if (! is_dir($cache_folder)) mkdir($cache_folder);
@@ -530,6 +559,46 @@ class BladeRule implements Rule
         }
 
         return $nodeTraverser->traverse($stmts);
+    }
+
+    private function get_php_and_html_content(Scope $scope, string $view_name, string $view_path): string
+    {
+
+
+        /**
+         * There is some problems with the PHPStan cache, if you want more information go inside the CacheManager class
+         * but it's not required to understand the `process_view` function.
+         */
+        $this->cache_manager->add_dependency_to_view_file($scope->getFile(), $view_path);
+
+        /**
+         * We get the Blade content, if the file doesn't exists, Larastan should catch this, so we return no errors here.
+         * If there is no content inside the view file, there is no error possible so return early.
+         */
+        if (! file_exists($view_path)) return [];
+
+        $blade_content = file_get_contents($view_path);
+        if (! $blade_content) return [];
+
+        /**
+         * We add a comment before each Blade line with the view name and the line.
+         */
+        $blade_lines = explode(PHP_EOL, $blade_content);
+
+        $blade_lines_with_lines_numbers = [];
+        foreach ($blade_lines as $i => $line) {
+            $line_number = $i + 1;
+            $blade_lines_with_lines_numbers[$i] = "/** view_name: {$view_name}, view_path: {$view_path}, line: {$line_number} */{$line}";
+        }
+
+        $blade_content_with_lines_numbers = implode(PHP_EOL, $blade_lines_with_lines_numbers);
+
+        /**
+         * The Blade compiler will return us a mix of HTML and PHP.
+         * Almost each line will have the comment with view name and line number at the beginning
+         * but if one Blade line is compiled to multiple PHP lines the comment is only present on the first line.
+         */
+        return $this->blade_compiler()->compileString($blade_content_with_lines_numbers);
     }
 
     private function evaluate_string(Expr $expr, Scope $scope): ?string

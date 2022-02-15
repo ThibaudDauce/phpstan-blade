@@ -10,7 +10,7 @@ use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Stmt\Foreach_;
 use PhpParser\NodeVisitorAbstract;
 
-final class AddLoopVarTypeToForeachNodeVisitor extends NodeVisitorAbstract
+class AddLoopVarTypeToForeachNodeVisitor extends NodeVisitorAbstract
 {
     private ?Expr $expr = null;
 
