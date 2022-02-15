@@ -19,6 +19,7 @@ use PhpParser\ParserFactory;
 use PHPStan\Rules\RuleError;
 use PHPStan\Type\ObjectType;
 use PhpParser\ConstExprEvaluator;
+use PhpParser\Node\Expr\FuncCall;
 use PhpParser\NodeVisitorAbstract;
 use PHPStan\Rules\RuleErrorBuilder;
 use Illuminate\Support\ViewErrorBag;
@@ -66,54 +67,139 @@ class BladeRule implements Rule
 
     public function getNodeType(): string
     {
-        return Node::class;
+        return FuncCall::class;
     }
 
     /** @inheritDoc */
-    public function processNode(Node $node, Scope $scope): array
+    public function processNode(Node $funcCall, Scope $scope): array
     {
-        if (! $node instanceof Node\Expr\FuncCall) {
+        // We only watch function calls right now.
+        if (! $funcCall instanceof FuncCall) return [];
+
+        /**
+         * MATCH VIEW FUNCTION
+         * 
+         * First we will try to find the function name to see if it's `view()`.
+         * If we cannot find the function name or if the name is not `view`,
+         * we will return an empty array: no errors. 
+         */
+
+        /**
+         * The function name is an expression, hard to find the real string name here…
+         * @todo We could try `evaluate_string` to fetch the name if it's a constant expression, for example:
+         *     $function = 'view';
+         *     {$function}('welcome', []);
+         * But not sure if it's something really useful…
+         */
+        if (! $funcCall->name instanceof Node\Name) return [];
+
+        /**
+         * The scope allows us to resolve the real string behind the Node\Name.
+         */
+        $funcName = $scope->resolveName($funcCall->name);
+        if ($funcName !== 'view') return [];
+
+        /**
+         * Here the `view()` function could be a user-defined function, maybe we should check
+         * if it's the `view()` function from Laravel. Not sure how to do that… @todo
+         */
+
+
+
+        /**
+         * FIND VIEW PARAMETERS
+         * 
+         * Now, we know that we are calling the `view()` function, 
+         * we need to check the function parameters:
+         * - 0 parameter:  the `view()` function without any parameter returns the `ViewFactory` to do something different.
+         * - 1 parameter:  the view has no parameters
+         * - 2 parameters: the view has an array inside the second parameter with parameters.
+         * - more that 2 parameters: it's an error
+         */
+
+        $number_of_parameters = count($funcCall->getArgs());
+
+        if ($number_of_parameters === 0) {
+            return [];
+        } elseif ($number_of_parameters === 1) {
+            $first_parameter = $funcCall->getArgs()[0]->value;
+            $parameters_array = new Node\Expr\Array_();
+        } elseif ($number_of_parameters === 2) {
+            $first_parameter  = $funcCall->getArgs()[0]->value;
+            $second_parameter = $funcCall->getArgs()[1]->value;
+
+            if ($second_parameter instanceof Node\Expr\Array_) {
+                $parameters_array = $second_parameter;
+            } else {
+                /**
+                 * Here the second parameter is not an array, it could be:
+                 * - view('welcome', compact('user')) @todo support compact
+                 * - view('welcome', $parameters)     @todo support variable array
+                 */
+                return [];
+            }
+        } else {
             return [];
         }
 
-        $funcCall = $node;
+        /**
+         * We will try to find the string behind the first parameter, it could be:
+         * - view('welcome')                                         a simple constant string 
+         * - view($view_name) where $view_name = 'welcome';          a variable with a constant string inside
+         * - view(view_name()) where view_name() return 'welcome'    a function with a constant return
+         */
+        $template_name = $this->evaluate_string($first_parameter, $scope);
 
-        $funcName = $funcCall->name;
-
-        if (! $funcName instanceof Node\Name) return [];
-
-        $funcName = $scope->resolveName($funcName);
-
-        if ($funcName !== 'view') return [];
-
-        // TODO: maybe make sure this function is coming from Laravel
-
-        if (count($funcCall->getArgs()) === 0) return [];
-
-        $template = $funcCall->getArgs()[0]->value;
-
-        $template_name = $this->evaluate_string($template, $scope);
-
+        // If the first parameter is not constant, we return no errors because we cannot 
+        // find the template.
         if (! $template_name) return [];
 
-        $args = $funcCall->getArgs();
-
-        if (count($args) === 1) {
-            $parameters_array = new Node\Expr\Array_();
-        } elseif (count($args) === 2) {
-            if ($args[1]->value instanceof Node\Expr\Array_) {
-                $parameters_array = $args[1]->value;
-            } else {
-                // TODO disable compact.
-                $parameters_array = new Node\Expr\Array_();
-            }
-        } else {
-            throw new Exception("Cannot call view with " . count($args) . " arguments");
-        }
-
+        /**
+         * Here we use the `templateVariableTypesResolver` to transform the view parameters array to a list of 
+         * names and types. This array will be use bellow to generate a doc block.
+         * 
+         * For example, if we have:
+         * view('welcome', [
+         *     'name' => 'Thibaud',
+         *     'age' => $user->age,
+         *     'users' => User::all(),
+         * ]);
+         * 
+         * We need to have an array:
+         * [
+         *     new VariableAndType('name', string),
+         *     new VariableAndType('age', int),
+         *     new VariableAndType('users', Collection<User>),
+         * ]
+         * 
+         * This array could be transform in a docblock (where [AT] is @):
+         * 
+         * [AT]var string $name
+         * [AT]var int $age
+         * [At]var Illuminate\Eloquent\Collection<App\Models\User> $users
+         */
         $variables_and_types = $this->templateVariableTypesResolver->resolveArray($parameters_array, $scope);
 
-        // Fix $this type
+            
+        /**
+         * If the view parameters contains `$this` the type found by `templateVariableTypesResolver` is incorrect.
+         *
+         * For example, inside a `Invoice` model:
+         * return view('invoice', [
+         *     'invoice' => $this,
+         * ]);
+         * 
+         * `templateVariableTypesResolver` will return:
+         *  new VariableAndType('invoice', ThisType<Invoice>)
+         * 
+         * And generate a docblock:
+         * [AT]var $this(Invoice) $invoice
+         * 
+         * This docblock is incorrect so we need to replace the `ThisType<Invoice>` by just `Invoice` to have the correct docblock:
+         * [AT]var Invoice $invoice
+         * 
+         * The method ThisType::getStaticObjectType() returns the type of the object inside `ThisType`.
+         */
         foreach ($variables_and_types as $i => $variable_type) {
             $type = $variable_type->getType();
             if ($type instanceof ThisType) {
@@ -121,58 +207,46 @@ class BladeRule implements Rule
             }
         }
 
+
+        /**
+         * LIVEWIRE MANAGEMENT
+         * 
+         * Inside a Livewire view we have access to public properties directly without passing them to the view function.
+         * We also have access to `$this` (the component object).
+         */
         if ($scope->isInClass()) {
             $class = $scope->getClassReflection();
             if (! $class) {
                 throw new Exception('`$scope->isInClass()` returned `true` but `$scope->getClassReflection()` returned `null`. Is it possible?');
             }
 
-            // @phpstan-ignore-next-line
-            if ($class->isSubclassOf(Component::class)) {
-                /** @var string */
+            // I don't require Livewire inside this package so I use the string class version.
+            if ($class->isSubclassOf('Livewire\Component')) {
+                /** @var string The real type is class-string but VSCode has problems with that… :-( Sad… */
                 $class_name = $class->getName();
+
+                // The `$this` variable is available inside the view.
                 $variables_and_types[] = new VariableAndType('this', new ObjectType($class_name));
 
+                // All public properties of the class are available to the view.
                 $properties = $class->getNativeReflection()->getProperties(ReflectionProperty::IS_PUBLIC);
-
                 foreach ($properties as $property) {
-                    if ($property->class !== $class->getNativeReflection()->getName()) continue;
-
                     $variables_and_types[] = new VariableAndType($property->name, $class->getProperty($property->name, $scope)->getReadableType());
                 }
             }
         }
 
-        return $this->process_template($scope, $node, $template_name, $variables_and_types);
-    }
-
-    private function evaluate_string(Expr $expr, Scope $scope): ?string
-    {
-        try {
-            $result = $this->constExprEvaluator->evaluateDirectly($expr);
-            if (is_string($result)) return $result;
-        } catch (ConstExprEvaluationException) {
-        }
-
-        $exprType = $scope->getType($expr);
-
-        if ($exprType instanceof ConstantStringType) {
-            return $exprType->getValue();
-        }
-
-        return null;
-    }
-
-    private function view_finder(): ViewFinderInterface
-    {
-        return $this->container->make(Factory::class)->getFinder();
+        /**
+         * We have the template name, we have the template parameters, let's analyse the Blade content!
+         */
+        return $this->process_template($scope, $funcCall, $template_name, $variables_and_types);
     }
 
     /**
      * @param VariableAndType[] $variables_and_types
      * @return RuleError[]
      */
-    private function process_template(Scope $scope, Node $node, string $template_name, array $variables_and_types): array
+    private function process_template(Scope $scope, FuncCall $node, string $template_name, array $variables_and_types): array
     {
         $template_path = $this->view_finder()->find($template_name);
 
@@ -353,4 +427,25 @@ class BladeRule implements Rule
         return $nodeTraverser->traverse($stmts);
     }
 
+    private function evaluate_string(Expr $expr, Scope $scope): ?string
+    {
+        try {
+            $result = $this->constExprEvaluator->evaluateDirectly($expr);
+            if (is_string($result)) return $result;
+        } catch (ConstExprEvaluationException) {
+        }
+
+        $exprType = $scope->getType($expr);
+
+        if ($exprType instanceof ConstantStringType) {
+            return $exprType->getValue();
+        }
+
+        return null;
+    }
+
+    private function view_finder(): ViewFinderInterface
+    {
+        return $this->container->make(Factory::class)->getFinder();
+    }
 }
