@@ -1,5 +1,7 @@
 # PHPStan Blade
 
+This PHPStan extension analyse Blade views for errors.
+
 ## Installation
 
 Install the extension with Composer.
@@ -29,3 +31,7 @@ parameters:
 - [ ] Support mailable views
 - [ ] Support `@includes`
 - [ ] Support `compact()` function for view parameters
+
+## Development
+
+The extension code has a lot of comment to explain every thing it's doing. The main entry point is the `BladeRule` class.
