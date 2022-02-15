@@ -4,28 +4,33 @@
   20     Access to an undefined property App\Models\User::$emai.  
  ------ --------------------------------------------------------- 
 
- ------ ------------------------------------------------------------ 
-  Line   Namespace::welcome from Http/Controllers/Controller.php:32  
- ------ ------------------------------------------------------------ 
-  1      Variable $user might not be defined.                        
- ------ ------------------------------------------------------------ 
+ ------ --------------------------------------------------------- 
+  Line   Namespace::welcome ← Http/Controllers/Controller.php:32  
+ ------ --------------------------------------------------------- 
+  1      Variable $user might not be defined.                     
+ ------ --------------------------------------------------------- 
 
- ------ -------------------------------------------------------------------- 
-  Line   addition from Http/Controllers/Controller.php:23                    
- ------ -------------------------------------------------------------------- 
-  1      Binary operation "+" between 'Hi!' and 42 results in an error.      
-  1      Binary operation "+" between int and 'string' results in an error.  
- ------ -------------------------------------------------------------------- 
+ ------ ---------------------------------------------------------------- 
+  Line   addition ← welcome:42 ← Http/Controllers/Controller.php:23      
+ ------ ---------------------------------------------------------------- 
+  1      Binary operation "+" between 'Hi!' and 42 results in an error.  
+ ------ ---------------------------------------------------------------- 
+
+ ------ ---------------------------------------------------------------------- 
+  Line   addition ← user:42 ← welcome:42 ← Http/Controllers/Controller.php:23  
+ ------ ---------------------------------------------------------------------- 
+  1      Binary operation "+" between int and 'string' results in an error.    
+ ------ ---------------------------------------------------------------------- 
 
  ------ --------------------------------------------------------- 
-  Line   user from Http/Controllers/Controller.php:23             
+  Line   user ← welcome:42 ← Http/Controllers/Controller.php:23   
  ------ --------------------------------------------------------- 
   3      Access to an undefined property App\Models\User::$di.    
   3      Access to an undefined property App\Models\User::$oups.  
  ------ --------------------------------------------------------- 
 
  ------ ---------------------------------------------------------------- 
-  Line   welcome from Http/Controllers/Controller.php:23                 
+  Line   welcome ← Http/Controllers/Controller.php:23                    
  ------ ---------------------------------------------------------------- 
   10     Access to an undefined property App\Models\User::$emai.         
   10     Access to an undefined property App\Models\User::$nam.          
