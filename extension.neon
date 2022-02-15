@@ -1,9 +1,11 @@
 rules:
     - ThibaudDauce\PHPStanBlade\ViewFunctionRule
+    - ThibaudDauce\PHPStanBlade\ViewFactoryMakeMethodRule
 
 services:
     - PhpParser\ConstExprEvaluator
     - ThibaudDauce\PHPStanBlade\LaravelContainer
+    - ThibaudDauce\PHPStanBlade\BladeAnalyser
     - ThibaudDauce\PHPStanBlade\CacheManager
     errorFormatter.blade:
         class: ThibaudDauce\PHPStanBlade\BladeFormatter
