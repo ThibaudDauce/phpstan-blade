@@ -28,8 +28,8 @@ parameters:
 - [x] **Support Blade directives**
 - [x] **Support views namespaces**
 - [x] **Support Livewire components**
+- [x] **Support `@include` with full stacktrace showing exactly the place and the context of the error**
 - [ ] Support mailable views
-- [ ] Support `@includes`
 - [ ] Support `compact()` function for view parameters
 
 ## Development
