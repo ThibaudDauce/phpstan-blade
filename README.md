@@ -2,6 +2,8 @@
 
 This PHPStan extension analyse Blade views for errors.
 
+![Result example](https://github.com/ThibaudDauce/phpstan-blade/blob/master/docs/result.png?raw=true)
+
 ## Installation
 
 Install the extension with Composer.
