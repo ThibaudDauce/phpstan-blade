@@ -37,14 +37,18 @@ class BladeFormatter
             $view_name = $fileSpecificError->getMetadata()['view_name'] ?? null;
 
             /** @var string */
-            $view_function_line = $fileSpecificError->getMetadata()['view_function_line'] ?? null;
+            $controller_line = $fileSpecificError->getMetadata()['controller_line'] ?? null;
 
-            $relativeFilePath = $this->relativePathHelper->getRelativePath($fileSpecificError->getFile());
+            /** @var string */
+            $controller_path = $fileSpecificError->getMetadata()['controller_path'] ?? null;
 
-            if ($view_name && $view_function_line) {
-                $key = "{$view_name} <fg=gray>from {$relativeFilePath}:{$view_function_line}</>";
+            $error_path = $this->relativePathHelper->getRelativePath($fileSpecificError->getFile());
+            
+            if ($view_name && $controller_line && $controller_path) {
+                $controller_relative_path = $this->relativePathHelper->getRelativePath($controller_path);
+                $key = "{$view_name} <fg=gray>from {$controller_relative_path}:{$controller_line}</>";
             } else {
-                $key = $relativeFilePath;
+                $key = $error_path;
             }
 
             if (! isset($fileErrors[$key])) {

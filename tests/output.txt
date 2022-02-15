@@ -1,3 +1,9 @@
+ ------ --------------------------------------------------------- 
+  Line   Http/Controllers/Controller.php                          
+ ------ --------------------------------------------------------- 
+  20     Access to an undefined property App\Models\User::$emai.  
+ ------ --------------------------------------------------------- 
+
  ------ ------------------------------------------------------------ 
   Line   Namespace::welcome from Http/Controllers/Controller.php:32  
  ------ ------------------------------------------------------------ 
@@ -18,12 +24,6 @@
   50     Parameter #1 (mixed) of echo cannot be converted to string.     
   54     Binary operation "+" between 42 and 'Hi!' results in an error.  
  ------ ---------------------------------------------------------------- 
-
- ------ --------------------------------------------------------- 
-  Line   Http/Controllers/Controller.php                          
- ------ --------------------------------------------------------- 
-  20     Access to an undefined property App\Models\User::$emai.  
- ------ --------------------------------------------------------- 
 
  [ERROR] Found 10 errors                                                        
 

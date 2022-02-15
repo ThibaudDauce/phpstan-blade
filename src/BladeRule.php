@@ -209,6 +209,13 @@ class BladeRule implements Rule
 
 
         /**
+         * Laravel provides/uses some variables in all the views. Let's add them to the available variables.
+         */
+        $variables_and_types[] = new VariableAndType('__env', new ObjectType(Factory::class));
+        $variables_and_types[] = new VariableAndType('errors', new ObjectType(ViewErrorBag::class));
+        $variables_and_types[] = new VariableAndType('component', new ObjectType(AnonymousComponent::class));
+
+        /**
          * LIVEWIRE MANAGEMENT
          * 
          * Inside a Livewire view we have access to public properties directly without passing them to the view function.
@@ -281,7 +288,7 @@ class BladeRule implements Rule
         $blade_lines_with_lines_numbers = [];
         foreach ($blade_lines as $i => $line) {
             $line_number = $i + 1;
-            $blade_lines_with_lines_numbers[$i] = "/** view: {$view_name}, line: {$line_number} */{$line}";
+            $blade_lines_with_lines_numbers[$i] = "/** view_name: {$view_name}, view_path: {$view_path}, line: {$line_number} */{$line}";
         }
 
         $blade_content_with_lines_numbers = implode(PHP_EOL, $blade_lines_with_lines_numbers);
@@ -300,14 +307,24 @@ class BladeRule implements Rule
          * We will transform the mix of HTML and PHP to only PHP lines with the comment (view and line number) the line before.
          * 
          * For each line we will try to match the comment first. If there is no comment we will use the previous one.
+         * Then we will match a PHP block or an HTML block depending on the previous one (starting with an HTML block
+         * because PHP files are HTML by default)
+         * On each match we will get the content of the block and the tail (the remaining part of the line).
+         * If we are in a PHP block, we will save the content in the `$php_content_lines` with the comment just above.
+         * If we are in an HTML block, we will discard the content because HTML is not analyse by PHPStan.
+         * 
+         * We add a `;` after each PHP block to prevent problems. A PHP line ending with `;;` is correct
+         * but a PHP line ending with no `;` is broken.
          */
 
         $html_and_php_content_lines = explode(PHP_EOL, $html_and_php_content);
 
-        $php_content_lines = [];
+        $php_content_lines = [
+            '<?php', // The file will only contains PHP so open the PHP tag at the beginning.
+        ];
         $inside_php = false;
         foreach ($html_and_php_content_lines as $line) {
-            preg_match('#(?P<comment>/\*\* view: .*?, line: \d+ \*/)?(?P<tail>.*)#', $line, $matches);
+            preg_match('#(?P<comment>/\*\* view_name: .*?, view_path: .*?, line: \d+ \*/)?(?P<tail>.*)#', $line, $matches);
 
             if (! $matches || ! $matches['tail']) continue;
 
@@ -365,73 +382,123 @@ class BladeRule implements Rule
             }
         }
 
-        if ($php_content_lines) {
-            array_unshift($php_content_lines, '<?php');
-        }
+        // We have only the <?php tag line, so no errors in this file (it's only HTML.)
+        if (count($php_content_lines) === 1) return [];
 
         $php_content = implode(PHP_EOL, $php_content_lines);
-        if (! $php_content) {
-            return [];
-        }
 
-        $tmp_file_path = sys_get_temp_dir() . '/phpstan-blade/' . md5($scope->getFile()) . '-blade-compiled.php';
-        if (! is_dir(sys_get_temp_dir() . '/phpstan-blade/')) {
-            mkdir(sys_get_temp_dir() . '/phpstan-blade/');
-        }
 
+        /**
+         * We will store our PHP result inside a custom temp folder.
+         * If the folder doesn't exists, let's create it.
+         */
+        $cache_folder = sys_get_temp_dir() . '/phpstan-blade/';
+        $cache_file_name =  md5($scope->getFile()) . '-blade-compiled.php';
+
+        $tmp_file_path = "{$cache_folder}{$cache_file_name}";
+        if (! is_dir($cache_folder)) mkdir($cache_folder);
+
+
+        /**
+         * Then, we'll need to do some modification on the PHP content.
+         * We'll use PHPParser to parse the PHP and add/remove/edit some nodes inside the PHP.
+         */
         $stmts = $this->parser->parse($php_content);
 
+        /**
+         * If no statements w'll fail to parse the PHP file.
+         * Right now, I throw an exception but maybe I need to look into what PHPStan do if there is
+         * a parse error inside a PHP file. @todo Maybe return an error?
+         */
         if (! $stmts) {
-            file_put_contents($tmp_file_path, $php_content);
+            file_put_contents($tmp_file_path, $php_content); // I store the content of the PHP inside the file for debugging purposes.
             throw new Exception("Fail to parse the PHP file from view {$view_name} (you can look in {$tmp_file_path} to see the error).");
         }
 
-        $stmts = $this->traverseStmtsWithVisitors($stmts, [
+        /**
+         * To avoid some false positives and improve PHPStan errors,
+         * we'll modify the statements with the three following classes.
+         * 
+         * You can look inside these three classes to have more information about that.
+         */
+        $stmts = $this->modify_statements($stmts, [
             new AddLoopVarTypeToForeachNodeVisitor,
             new RemoveEscapeFunctionNodeVisitor,
             new RemoveEnvVariableNodeVisitor,
         ]);
 
-        // var_dump($variables_and_types);
-
-        $variables_and_types[] = new VariableAndType('__env', new ObjectType(Factory::class));
-        $variables_and_types[] = new VariableAndType('errors', new ObjectType(ViewErrorBag::class));
-        $variables_and_types[] = new VariableAndType('component', new ObjectType(AnonymousComponent::class));
-
+        /**
+         * The `varDocNodeFactory` use the result of the `templateVariableTypesResolver` to create the docblock.
+         * We will create the [AT]var docblock and add it at the beginning of the file.
+         */
         $doc_nodes = $this->varDocNodeFactory->createDocNodes($variables_and_types);
         $stmts = array_merge($doc_nodes, $stmts);
 
+        /**
+         * The `printerStandard` allows us to convert the array of PHP statements to a real PHP content.
+         * We'll save the content inside a file to analyse it with PHPStan.
+         */
         $php_content = $this->printerStandard->prettyPrintFile($stmts);
-
         file_put_contents($tmp_file_path, $php_content);
 
+        /**
+         * Here we use some PHPStan classes (not covered by semver, be careful!) to analyse the file and get the errors.
+         */
         $analyse_result = $this->fileAnalyserProvider->provide()->analyseFile($tmp_file_path, [], $this->registry, null); // @phpstan-ignore-line
         $raw_errors = $analyse_result->getErrors(); // @phpstan-ignore-line
 
+        /**
+         * PHPStan returns errors with the file name and line number of the compiled PHP file. These lines numbers don't match with the
+         * line numbers inside the Blade view (because we add/remove stuff and because one Blade line can generate multiple PHP lines)
+         * The goal of the following code is to find for each error the correct line number thanks to the comment added above.
+         */
         $php_content_lines = explode(PHP_EOL, $php_content);
         $errors = [];
         foreach ($raw_errors as $raw_error) {
-            $line_with_error = $php_content_lines[$raw_error->getLine() - 1];
+            /**
+             * We'll start at the line before the line with the error because we our lines are:
+             * - comment
+             * - PHP
+             * - comment
+             * - PHP
+             * - comment
+             * - PHP
+             * - PHP
+             * - PHP
+             * 
+             * Multiple PHP lines are possible because the `printerStandard` can do weird stuff. So we'll look up until we find a comment.
+             */
 
-            $comment_line = $raw_error->getLine() - 1;
-            $matches = [];
+            // This is the index of the PHP line (line number - 1 because the lines array
+            // is 0-based but the lines are 1-based). We'll start our do/while with a $comment_index-- so the first 
+            // preg_match will be on the line before the errored line.
+            $comment_index = $raw_error->getLine() - 1; 
             do {
-                $comment_line--;
-                $comment_of_line_with_error = $php_content_lines[$comment_line];
-                preg_match('#/\*\* view: (?P<view_name>.*), line: (?P<line>\d+) \*/#', $comment_of_line_with_error, $matches);
+                $comment_index--;
+                $comment_of_line_with_error = $php_content_lines[$comment_index];
+                preg_match('#/\*\* view_name: (?P<view_name>.*), view_path: (?P<view_path>.*), line: (?P<line>\d+) \*/#', $comment_of_line_with_error, $matches);
+            } while (! $matches && $comment_index >= 0);
 
-            } while (! $matches && $comment_line >= 0);
-
+            /**
+             * If the first line is before any comment, it should never happen.
+             */
             if (! $matches) {
+                $line_with_error = $php_content_lines[$raw_error->getLine() - 1];
                 throw new Exception("Cannot find comment with view name and lines before \"{$line_with_error}\" for error \"{$raw_error->getMessage()}\"");
             }
 
+            /**
+             * We'll create a new error with the view file path and the view file number.
+             * We'll also add some metadata to show a nice error title with the `BladeFormatter` class.
+             * @todo When support for @include is added, we'll need a way to show a stack trace of information
+             */
             $error = RuleErrorBuilder::message($raw_error->getMessage())
-                ->file($scope->getFile())
+                ->file($matches['view_path'])
                 ->line($matches['line'])
                 ->metadata([
-                    'view_name' => $view_name,
-                    'view_function_line' => $node->getLine(),
+                    'view_name' => $matches['view_name'],
+                    'controller_path' => $scope->getFile(),
+                    'controller_line' => $node->getLine(),
                 ])
                 ->build();
             $errors[] = $error;
@@ -446,7 +513,7 @@ class BladeRule implements Rule
      *
      * @return Node[]
      */
-    private function traverseStmtsWithVisitors(array $stmts, array $nodeVisitors): array
+    private function modify_statements(array $stmts, array $nodeVisitors): array
     {
         $nodeTraverser = new NodeTraverser();
         foreach ($nodeVisitors as $nodeVisitor) {
