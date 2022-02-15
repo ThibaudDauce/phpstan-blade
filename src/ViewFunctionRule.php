@@ -31,19 +31,18 @@ use Illuminate\View\ViewFinderInterface;
 use PhpParser\ConstExprEvaluationException;
 use Illuminate\View\Compilers\BladeCompiler;
 use PHPStan\Type\Constant\ConstantStringType;
-use ThibaudDauce\PHPStanBlade\PHPVisitors\ReplaceIncludes;
 use Symplify\TemplatePHPStanCompiler\ValueObject\VariableAndType;
 use Symplify\TemplatePHPStanCompiler\PHPStan\FileAnalyserProvider;
 use Symplify\TemplatePHPStanCompiler\NodeFactory\VarDocNodeFactory;
+use ThibaudDauce\PHPStanBlade\PHPVisitors\RemoveEscapeFunctionNodeVisitor;
 use ThibaudDauce\PHPStanBlade\PHPVisitors\AddLoopVarTypeToForeachNodeVisitor;
-use Vural\PHPStanBladeRule\PHPParser\NodeVisitor\RemoveEnvVariableNodeVisitor;
+use ThibaudDauce\PHPStanBlade\PHPVisitors\RemoveBrokenEnvVariableCallsVisitor;
 use Symplify\TemplatePHPStanCompiler\TypeAnalyzer\TemplateVariableTypesResolver;
-use Vural\PHPStanBladeRule\PHPParser\NodeVisitor\RemoveEscapeFunctionNodeVisitor;
 
 /**
  * @implements Rule<Node>
  */
-class BladeRule implements Rule
+class ViewFunctionRule implements Rule
 {
     private Registry $registry;
     private Parser $parser;
@@ -106,8 +105,6 @@ class BladeRule implements Rule
          * Here the `view()` function could be a user-defined function, maybe we should check
          * if it's the `view()` function from Laravel. Not sure how to do that… @todo
          */
-
-
 
         /**
          * FIND VIEW PARAMETERS
@@ -286,9 +283,7 @@ class BladeRule implements Rule
 
         $html_and_php_content_lines = explode(PHP_EOL, $html_and_php_content);
 
-        $php_content_lines = [
-            '<?php', // The file will only contains PHP so open the PHP tag at the beginning.
-        ];
+        $php_content_lines = [];
         $inside_php = false;
         foreach ($html_and_php_content_lines as $line) {
             preg_match('#(?P<comment>/\*\* view_name: .*?, view_path: .*?, line: \d+, includes_stacktrace: .*? \*/)?(?P<tail>.*)#', $line, $matches);
@@ -350,8 +345,10 @@ class BladeRule implements Rule
             }
         }
 
-        // We have only the <?php tag line, so no errors in this file (it's only HTML.)
-        if (count($php_content_lines) === 1) return [];
+        // If the file is only PHP no errors are possible.
+        if (! $php_content_lines) return [];
+
+        array_unshift($php_content_lines, '<?php');
 
         $php_content = implode(PHP_EOL, $php_content_lines);
 
@@ -365,12 +362,16 @@ class BladeRule implements Rule
         $tmp_file_path = "{$cache_folder}{$cache_file_name}";
         if (! is_dir($cache_folder)) mkdir($cache_folder);
 
-
         /**
          * Then, we'll need to do some modification on the PHP content.
          * We'll use PHPParser to parse the PHP and add/remove/edit some nodes inside the PHP.
          */
-        $stmts = $this->parser->parse($php_content);
+        try {
+            $stmts = $this->parser->parse($php_content);
+        } catch (Exception) {
+            file_put_contents($tmp_file_path, $php_content); // I store the content of the PHP inside the file for debugging purposes.
+            throw new Exception("Fail to parse the PHP file from view {$view_name} (you can look in {$tmp_file_path} to see the error).");
+        }
 
         /**
          * If no statements w'll fail to parse the PHP file.
@@ -391,7 +392,7 @@ class BladeRule implements Rule
         $stmts = $this->modify_statements($stmts, [
             new AddLoopVarTypeToForeachNodeVisitor,
             new RemoveEscapeFunctionNodeVisitor,
-            new RemoveEnvVariableNodeVisitor,
+            new RemoveBrokenEnvVariableCallsVisitor,
         ]);
 
         /**
@@ -541,7 +542,11 @@ class BladeRule implements Rule
             if (! $matches) break; // No more includes
 
             $include_php = $matches[0][0];
-            $include_statements = $this->parser->parse($include_php);
+            try {
+                $include_statements = $this->parser->parse($include_php);
+            } catch (Exception $e) {
+                throw new Exception("Cannot parse PHP code for include {$include_php}.");
+            }
             if (! $include_statements) throw new Exception("Cannot parse PHP code for include {$include_php}.");
             if (count($include_statements) !== 1) throw new Exception("PHP code for include is not one statement {$include_php}.");
             

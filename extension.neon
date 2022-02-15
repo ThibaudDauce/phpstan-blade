@@ -1,5 +1,5 @@
 rules:
-    - ThibaudDauce\PHPStanBlade\BladeRule
+    - ThibaudDauce\PHPStanBlade\ViewFunctionRule
 
 services:
     - PhpParser\ConstExprEvaluator

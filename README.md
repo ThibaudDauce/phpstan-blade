@@ -38,4 +38,4 @@ parameters:
 
 ## Development
 
-The extension code has a lot of comment to explain every thing it's doing. The main entry point is the `BladeRule` class.
+The extension code has a lot of comment to explain every thing it's doing. The main entry point is the `ViewFunctionRule` class.

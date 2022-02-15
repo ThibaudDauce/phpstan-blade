@@ -23,7 +23,6 @@
     "require": {
         "laravel/framework": "^9.0",
         "symplify/template-phpstan-compiler": "^10.1.x-dev",
-        "canvural/phpstan-blade-rule": "^0.2.0",
         "phpstan/phpstan": "^1.4",
         "nikic/php-parser": "^4.13"
     },
