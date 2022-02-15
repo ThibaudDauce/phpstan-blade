@@ -16,7 +16,6 @@ use PHPStan\Rules\Registry;
 use Illuminate\View\Factory;
 use PhpParser\NodeTraverser;
 use PhpParser\ParserFactory;
-use PHPStan\File\FileHelper;
 use PHPStan\Rules\RuleError;
 use PHPStan\Type\ObjectType;
 use PhpParser\ConstExprEvaluator;

@@ -1,0 +1,15 @@
+ ------ --------------------------------------------------------- 
+  Line   welcome from Http/Controllers/Controller.php:23          
+ ------ --------------------------------------------------------- 
+  10     Access to an undefined property App\Models\User::$emai.  
+  12     Variable $invoice might not be defined.                  
+ ------ --------------------------------------------------------- 
+
+ ------ --------------------------------------------------------- 
+  Line   Http/Controllers/Controller.php                          
+ ------ --------------------------------------------------------- 
+  20     Access to an undefined property App\Models\User::$emai.  
+ ------ --------------------------------------------------------- 
+
+ [ERROR] Found 3 errors                                                         
+
