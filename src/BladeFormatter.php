@@ -34,15 +34,15 @@ class BladeFormatter
         $fileErrors = [];
         foreach ($analysisResult->getFileSpecificErrors() as $fileSpecificError) {
             /** @var string */
-            $template_name      = $fileSpecificError->getMetadata()['template_name'] ?? null;
+            $view_name = $fileSpecificError->getMetadata()['view_name'] ?? null;
 
             /** @var string */
             $view_function_line = $fileSpecificError->getMetadata()['view_function_line'] ?? null;
 
             $relativeFilePath = $this->relativePathHelper->getRelativePath($fileSpecificError->getFile());
 
-            if ($template_name && $view_function_line) {
-                $key = "{$template_name} <fg=gray>from {$relativeFilePath}:{$view_function_line}</>";
+            if ($view_name && $view_function_line) {
+                $key = "{$view_name} <fg=gray>from {$relativeFilePath}:{$view_function_line}</>";
             } else {
                 $key = $relativeFilePath;
             }

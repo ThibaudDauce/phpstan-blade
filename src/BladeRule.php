@@ -148,11 +148,11 @@ class BladeRule implements Rule
          * - view($view_name) where $view_name = 'welcome';          a variable with a constant string inside
          * - view(view_name()) where view_name() return 'welcome'    a function with a constant return
          */
-        $template_name = $this->evaluate_string($first_parameter, $scope);
+        $view_name = $this->evaluate_string($first_parameter, $scope);
 
         // If the first parameter is not constant, we return no errors because we cannot 
-        // find the template.
-        if (! $template_name) return [];
+        // find the name of the view.
+        if (! $view_name) return [];
 
         /**
          * Here we use the `templateVariableTypesResolver` to transform the view parameters array to a list of 
@@ -237,22 +237,22 @@ class BladeRule implements Rule
         }
 
         /**
-         * We have the template name, we have the template parameters, let's analyse the Blade content!
+         * We have the view name, we have the view parameters, let's analyse the Blade content!
          */
-        return $this->process_template($scope, $funcCall, $template_name, $variables_and_types);
+        return $this->process_view($scope, $funcCall, $view_name, $variables_and_types);
     }
 
     /**
      * @param VariableAndType[] $variables_and_types
      * @return RuleError[]
      */
-    private function process_template(Scope $scope, FuncCall $node, string $template_name, array $variables_and_types): array
+    private function process_view(Scope $scope, FuncCall $node, string $view_name, array $variables_and_types): array
     {
-        $template_path = $this->view_finder()->find($template_name);
+        $view_path = $this->view_finder()->find($view_name);
 
-        $this->cache_manager->add_dependency_to_template_file($scope->getFile(), $template_path);
+        $this->cache_manager->add_dependency_to_view_file($scope->getFile(), $view_path);
 
-        $blade_content = file_get_contents($template_path);
+        $blade_content = file_get_contents($view_path);
 
         if (! $blade_content) {
             return []; // TODO return error?
@@ -263,7 +263,7 @@ class BladeRule implements Rule
         $blade_lines_with_lines_numbers = [];
         foreach ($blade_lines as $i => $line) {
             $line_number = $i + 1;
-            $blade_lines_with_lines_numbers[$i] = "/** template: {$template_name}, line: {$line_number} */{$line}";
+            $blade_lines_with_lines_numbers[$i] = "/** view: {$view_name}, line: {$line_number} */{$line}";
         }
 
         $blade_content_with_lines_numbers = implode(PHP_EOL, $blade_lines_with_lines_numbers);
@@ -278,7 +278,7 @@ class BladeRule implements Rule
         $php_content_lines = [];
         $inside_php = false;
         foreach ($html_and_php_content_lines as $line) {
-            preg_match('#(?P<comment>/\*\* template: .*?, line: \d+ \*/)?(?P<tail>.*)#', $line, $matches);
+            preg_match('#(?P<comment>/\*\* view: .*?, line: \d+ \*/)?(?P<tail>.*)#', $line, $matches);
 
             if (! $matches || ! $matches['tail']) continue;
 
@@ -288,7 +288,7 @@ class BladeRule implements Rule
             $tail = $matches['tail'];
 
             if (! isset($comment)) {
-                throw new Exception("Found a PHP line before the first comment indicating the template file and line number.");
+                throw new Exception("Found a PHP line before the first comment indicating the view file and line number.");
             }
             while (true) {
                 if ($inside_php) {
@@ -354,7 +354,7 @@ class BladeRule implements Rule
 
         if (! $stmts) {
             file_put_contents($tmp_file_path, $php_content);
-            throw new Exception("Fail to parse the PHP file from view {$template_name} (you can look in {$tmp_file_path} to see the error).");
+            throw new Exception("Fail to parse the PHP file from view {$view_name} (you can look in {$tmp_file_path} to see the error).");
         }
 
         $stmts = $this->traverseStmtsWithVisitors($stmts, [
@@ -389,19 +389,19 @@ class BladeRule implements Rule
             do {
                 $comment_line--;
                 $comment_of_line_with_error = $php_content_lines[$comment_line];
-                preg_match('#/\*\* template: (?P<template_name>.*), line: (?P<line>\d+) \*/#', $comment_of_line_with_error, $matches);
+                preg_match('#/\*\* view: (?P<view_name>.*), line: (?P<line>\d+) \*/#', $comment_of_line_with_error, $matches);
 
             } while (! $matches && $comment_line >= 0);
 
             if (! $matches) {
-                throw new Exception("Cannot find comment with template name and lines before \"{$line_with_error}\" for error \"{$raw_error->getMessage()}\"");
+                throw new Exception("Cannot find comment with view name and lines before \"{$line_with_error}\" for error \"{$raw_error->getMessage()}\"");
             }
 
             $error = RuleErrorBuilder::message($raw_error->getMessage())
                 ->file($scope->getFile())
                 ->line($matches['line'])
                 ->metadata([
-                    'template_name' => $template_name,
+                    'view_name' => $view_name,
                     'view_function_line' => $node->getLine(),
                 ])
                 ->build();

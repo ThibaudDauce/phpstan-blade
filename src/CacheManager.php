@@ -16,15 +16,15 @@ class CacheManager
         return $cache_file_path;
     }
 
-    public function add_dependency_to_template_file(string $php_file, string $template_file): void
+    public function add_dependency_to_view_file(string $php_file, string $view_file): void
     {
         $dependencies = $this->get_dependencies();
 
-        $last_modified = filemtime($template_file);
-        if (! $last_modified) throw new Exception("Cannot find last modified date of {$template_file}.");
+        $last_modified = filemtime($view_file);
+        if (! $last_modified) throw new Exception("Cannot find last modified date of {$view_file}.");
 
         $dependencies[$php_file] ??= [];
-        $dependencies[$php_file][$template_file] = $last_modified;
+        $dependencies[$php_file][$view_file] = $last_modified;
 
         $this->save($dependencies);
     }
@@ -43,7 +43,7 @@ class CacheManager
             $dependency = json_decode($line);
 
             $dependencies[$dependency->php_file] ??= []; // @phpstan-ignore-line
-            $dependencies[$dependency->php_file][$dependency->template_file] = $dependency->mtime; // @phpstan-ignore-line
+            $dependencies[$dependency->php_file][$dependency->view_file] = $dependency->mtime; // @phpstan-ignore-line
         }
 
         return $dependencies; // @phpstan-ignore-line
@@ -53,11 +53,11 @@ class CacheManager
     public function save(array $dependencies): void
     {
         $lines = [];
-        foreach ($dependencies as $php_file => $templates) {
-            foreach ($templates as $template_file => $mtime) {
+        foreach ($dependencies as $php_file => $views) {
+            foreach ($views as $view_file => $mtime) {
                 $lines[] = json_encode([
                     'php_file' => $php_file,
-                    'template_file' => $template_file,
+                    'view_file' => $view_file,
                     'mtime' => $mtime,
                 ]);
             }
