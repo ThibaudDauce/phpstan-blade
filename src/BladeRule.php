@@ -129,7 +129,9 @@ class BladeRule implements Rule
 
             // @phpstan-ignore-next-line
             if ($class->isSubclassOf(Component::class)) {
-                $variables_and_types[] = new VariableAndType('this', new ObjectType($class->getName()));
+                /** @var string */
+                $class_name = $class->getName();
+                $variables_and_types[] = new VariableAndType('this', new ObjectType($class_name));
 
                 $properties = $class->getNativeReflection()->getProperties(ReflectionProperty::IS_PUBLIC);
 
