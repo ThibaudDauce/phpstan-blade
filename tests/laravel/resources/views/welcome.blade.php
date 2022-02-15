@@ -67,5 +67,12 @@
             'b' => $constant_int,
         ]
     )
+
+    @php 
+        use App\Models\User;
+    @endphp
+
+    {{ User::HELLO_WORLD }}
+    {{ User::HELLO_WORL }}
 </body>
 </html>

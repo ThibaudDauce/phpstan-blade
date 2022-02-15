@@ -42,7 +42,8 @@
          iterables are supported.                                        
   52     Parameter #1 (mixed) of echo cannot be converted to string.     
   56     Binary operation "+" between 42 and 'Hi!' results in an error.  
+  76     Access to undefined constant App\Models\User::HELLO_WORL.       
  ------ ---------------------------------------------------------------- 
 
- [ERROR] Found 14 errors                                                        
+ [ERROR] Found 15 errors                                                        
 
