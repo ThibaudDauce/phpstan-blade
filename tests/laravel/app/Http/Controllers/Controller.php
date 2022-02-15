@@ -27,6 +27,11 @@ class Controller extends BaseController
         ]);
     }
 
+    public function namespaced_views(): View
+    {
+        return view('Namespace::welcome');
+    }
+
     public function test(): string
     {
         return 'test';

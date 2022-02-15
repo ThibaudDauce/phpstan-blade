@@ -1,3 +1,9 @@
+ ------ ------------------------------------------------------------ 
+  Line   Namespace::welcome from Http/Controllers/Controller.php:32  
+ ------ ------------------------------------------------------------ 
+  1      Variable $user might not be defined.                        
+ ------ ------------------------------------------------------------ 
+
  ------ --------------------------------------------------------------- 
   Line   welcome from Http/Controllers/Controller.php:23                
  ------ --------------------------------------------------------------- 
@@ -17,5 +23,5 @@
   20     Access to an undefined property App\Models\User::$emai.  
  ------ --------------------------------------------------------- 
 
- [ERROR] Found 7 errors                                                         
+ [ERROR] Found 8 errors                                                         
 

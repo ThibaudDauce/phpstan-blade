@@ -27,5 +27,7 @@ class AppServiceProvider extends ServiceProvider
         Blade::directive('datetime', function ($expression) {
             return "<?php echo ($expression)->format('m/d/Y H:i'); ?>";
         });
+
+        $this->loadViewsFrom(resource_path('/views_namespaced'), 'Namespace');
     }
 }
