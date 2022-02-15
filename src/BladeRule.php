@@ -5,7 +5,6 @@ namespace ThibaudDauce\PHPStanBlade;
 use Exception;
 use PhpParser\Node;
 use PhpParser\Parser;
-use Livewire\Component;
 use PHPStan\Rules\Rule;
 use ReflectionProperty;
 use PhpParser\Node\Expr;
