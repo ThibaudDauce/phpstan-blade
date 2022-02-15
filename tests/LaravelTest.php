@@ -11,11 +11,11 @@ class LaravelTest extends TestCase
     public function it_works()
     {
         (new Process(['php', 'vendor/bin/phpstan', 'clear-result-cache']))
-            ->setWorkingDirectory(__DIR__ . '/laravel_phpstan')
+            ->setWorkingDirectory(__DIR__ . '/laravel')
             ->run();
 
         $process = (new Process(['php', 'vendor/bin/phpstan', 'analyse', '--error-format', 'blade']))
-            ->setWorkingDirectory(__DIR__ . '/laravel_phpstan');
+            ->setWorkingDirectory(__DIR__ . '/laravel');
 
         $process->run();
 

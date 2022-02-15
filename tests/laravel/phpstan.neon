@@ -1,0 +1,13 @@
+includes:
+    - ./phpstan-baseline.neon
+    - ./vendor/nunomaduro/larastan/extension.neon
+    - ../../extension.neon
+
+parameters:
+    paths:
+        - app
+
+    level: max
+
+    ignoreErrors:
+        - '#PHPDoc tag @var#'
