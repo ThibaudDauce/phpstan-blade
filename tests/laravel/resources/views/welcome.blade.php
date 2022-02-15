@@ -32,6 +32,8 @@
 
         {{ $user->email }}
 
+        @include('user')
+
         @foreach ($user->email as $oups)
             {{ $oups }}
         @endforeach
@@ -52,5 +54,18 @@
     {{ $constant_string }}
     {{ $constant_int }}
     {{ $constant_int + $constant_string }}
+
+    @include('addition', [
+        'a' => $constant_int,
+        'b' => $constant_int,
+    ])
+
+    @include(
+        'addition',
+        [
+            'a' => $constant_string,
+            'b' => $constant_int,
+        ]
+    )
 </body>
 </html>

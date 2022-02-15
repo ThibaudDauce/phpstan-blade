@@ -335,8 +335,18 @@ class BladeRule implements Rule
             if (! isset($comment)) {
                 throw new Exception("Found a PHP line before the first comment indicating the view file and line number.");
             }
+
             while (true) {
                 if ($inside_php) {
+                    /**
+                     * Here we'll first try to match an include.
+                     */
+                    preg_match('#\s*\$__env->make\(\'(.*?)\',( \[(.*?)?],)? \\\Illuminate\\\Support\\\Arr::except\(get_defined_vars\(\), \[\'__data\', \'__path\']\)\)->render\(\)#s', $tail, $matches);
+                    // dump($tail);
+                    // if ($matches) {
+                    //     dump($matches);
+                    // }
+
                     preg_match('#(?P<php>.*?)\?>(?P<tail>.*)#', $tail, $matches);
                     if (! $matches) {
                         // All the tail is PHP. Saving the line and going to the next line.

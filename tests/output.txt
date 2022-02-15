@@ -19,10 +19,10 @@
   20     Access to an undefined property                                 
          App\Http\Controllers\Controller::$not_existing.                 
   22     Cannot call method format() on string.                          
-  35     Argument of an invalid type string supplied for foreach, only   
+  37     Argument of an invalid type string supplied for foreach, only   
          iterables are supported.                                        
-  50     Parameter #1 (mixed) of echo cannot be converted to string.     
-  54     Binary operation "+" between 42 and 'Hi!' results in an error.  
+  52     Parameter #1 (mixed) of echo cannot be converted to string.     
+  56     Binary operation "+" between 42 and 'Hi!' results in an error.  
  ------ ---------------------------------------------------------------- 
 
  [ERROR] Found 10 errors                                                        

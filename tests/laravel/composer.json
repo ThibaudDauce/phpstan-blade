@@ -13,6 +13,7 @@
         "laravel/tinker": "^2.7"
     },
     "require-dev": {
+        "beyondcode/laravel-dump-server": "^1.8",
         "canvural/phpstan-blade-rule": "^0.3.0",
         "fakerphp/faker": "^1.9.1",
         "laravel/sail": "^1.0.1",
