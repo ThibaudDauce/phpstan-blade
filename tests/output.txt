@@ -1,9 +1,15 @@
- ------ --------------------------------------------------------- 
-  Line   welcome from Http/Controllers/Controller.php:23          
- ------ --------------------------------------------------------- 
-  10     Access to an undefined property App\Models\User::$emai.  
-  12     Variable $invoice might not be defined.                  
- ------ --------------------------------------------------------- 
+ ------ --------------------------------------------------------------- 
+  Line   welcome from Http/Controllers/Controller.php:23                
+ ------ --------------------------------------------------------------- 
+  10     Access to an undefined property App\Models\User::$emai.        
+  10     Access to an undefined property App\Models\User::$nam.         
+  12     Variable $invoice might not be defined.                        
+  20     Access to an undefined property                                
+         App\Http\Controllers\Controller::$not_existing.                
+  22     Cannot call method format() on string.                         
+  35     Argument of an invalid type string supplied for foreach, only  
+         iterables are supported.                                       
+ ------ --------------------------------------------------------------- 
 
  ------ --------------------------------------------------------- 
   Line   Http/Controllers/Controller.php                          
@@ -11,5 +17,5 @@
   20     Access to an undefined property App\Models\User::$emai.  
  ------ --------------------------------------------------------- 
 
- [ERROR] Found 3 errors                                                         
+ [ERROR] Found 7 errors                                                         
 

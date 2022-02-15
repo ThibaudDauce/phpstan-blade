@@ -248,16 +248,34 @@ class BladeRule implements Rule
      */
     private function process_view(Scope $scope, FuncCall $node, string $view_name, array $variables_and_types): array
     {
+        /**
+         * This function will analyse the Blade view to find errors.
+         * The main complexity is to prepare the file to keep the view name and the file number information (so we can
+         * repport the error at the right location).
+         */
+
+
+        // We use Laravel to find the path to the Blade view.
         $view_path = $this->view_finder()->find($view_name);
 
+        /**
+         * There is some problems with the PHPStan cache, if you want more information go inside the CacheManager class
+         * but it's not required to understand the `process_view` function.
+         */
         $this->cache_manager->add_dependency_to_view_file($scope->getFile(), $view_path);
 
+        /**
+         * We get the Blade content, if the file doesn't exists, Larastan should catch this, so we return no errors here.
+         * If there is no content inside the view file, there is no error possible so return early.
+         */
+        if (! file_exists($view_path)) return [];
+
         $blade_content = file_get_contents($view_path);
+        if (! $blade_content) return [];
 
-        if (! $blade_content) {
-            return []; // TODO return error?
-        }
-
+        /**
+         * We add a comment before each Blade line with the view name and the line.
+         */
         $blade_lines = explode(PHP_EOL, $blade_content);
 
         $blade_lines_with_lines_numbers = [];
@@ -268,10 +286,13 @@ class BladeRule implements Rule
 
         $blade_content_with_lines_numbers = implode(PHP_EOL, $blade_lines_with_lines_numbers);
 
-        $blade_compiler = $this->container->make(BladeCompiler::class);
-        $blade_compiler->withoutComponentTags();
 
-        $html_and_php_content = $blade_compiler->compileString($blade_content_with_lines_numbers);
+        /**
+         * The Blade compiler will return us a mix of HTML and PHP.
+         * Almost each line will have the comment with view name and line number at the beginning
+         * but if one Blade line is compiled to multiple PHP lines the comment is only present on the first line.
+         */
+        $html_and_php_content = $this->blade_compiler()->compileString($blade_content_with_lines_numbers);
 
         $html_and_php_content_lines = explode(PHP_EOL, $html_and_php_content);
 
@@ -447,5 +468,14 @@ class BladeRule implements Rule
     private function view_finder(): ViewFinderInterface
     {
         return $this->container->make(Factory::class)->getFinder();
+    }
+
+    private function blade_compiler(): BladeCompiler
+    {
+        /** @var BladeCompiler */
+        $blade_compiler = $this->container->make(BladeCompiler::class);
+        $blade_compiler->withoutComponentTags();
+
+        return $blade_compiler;
     }
 }

@@ -21,7 +21,7 @@ class LaravelTest extends TestCase
 
         $output = $process->getOutput();
 
-        // file_put_contents(__DIR__ . '/output.txt', $output);
+        file_put_contents(__DIR__ . '/output.txt', $output);
 
         $this->assertEquals(file_get_contents(__DIR__ . '/output.txt'), $output);
     }

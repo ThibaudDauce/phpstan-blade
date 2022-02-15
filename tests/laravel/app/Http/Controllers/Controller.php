@@ -22,6 +22,13 @@ class Controller extends BaseController
 
         return view('welcome', [
             'user' => $user,
+            'controller' => $this,
+            'users' => User::all(),
         ]);
+    }
+
+    public function test(): string
+    {
+        return 'test';
     }
 }
