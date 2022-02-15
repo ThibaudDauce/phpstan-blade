@@ -1,5 +1,7 @@
 {
     "name": "thibaud-dauce/phpstan-blade",
+    "description": "PHPStan extension to analyse Laravel Blade views.",
+    "license": "MIT",
     "autoload": {
         "psr-4": {
             "ThibaudDauce\\PHPStanBlade\\": "src/"
