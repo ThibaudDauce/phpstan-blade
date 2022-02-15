@@ -6,7 +6,6 @@ use Exception;
 use PhpParser\Node;
 use PhpParser\Parser;
 use PhpParser\Node\Arg;
-use PHPStan\Rules\Rule;
 use ReflectionProperty;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Stmt;
@@ -21,7 +20,6 @@ use PHPStan\Type\ObjectType;
 use PhpParser\Node\Stmt\Echo_;
 use PhpParser\Node\Expr\Array_;
 use PhpParser\ConstExprEvaluator;
-use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\NodeVisitorAbstract;
 use PHPStan\Rules\RuleErrorBuilder;
@@ -43,10 +41,10 @@ use Symplify\TemplatePHPStanCompiler\TypeAnalyzer\TemplateVariableTypesResolver;
 
 class BladeAnalyser
 {
-    private Registry $registry;
     private Parser $parser;
 
     public function __construct(
+        private Container $phpstan_container,
         private ConstExprEvaluator $constExprEvaluator,
         private TemplateVariableTypesResolver $templateVariableTypesResolver,
         private FileAnalyserProvider $fileAnalyserProvider,
@@ -351,7 +349,7 @@ class BladeAnalyser
         /**
          * Here we use some PHPStan classes (not covered by semver, be careful!) to analyse the file and get the errors.
          */
-        $analyse_result = $this->fileAnalyserProvider->provide()->analyseFile($tmp_file_path, [], $this->registry, null); // @phpstan-ignore-line
+        $analyse_result = $this->fileAnalyserProvider->provide()->analyseFile($tmp_file_path, [], $this->phpstan_container->getByType(Registry::class), null); // @phpstan-ignore-line
         $raw_errors = $analyse_result->getErrors(); // @phpstan-ignore-line
 
         /**

@@ -15,11 +15,8 @@ use PHPStan\DependencyInjection\Container;
 class ViewFunctionRule implements Rule
 {
     public function __construct(
-        private Container $container,
         private BladeAnalyser $blade_analyser,
-    ) {
-        
-    }
+    ) {}
 
     public function getNodeType(): string
     {
@@ -72,7 +69,6 @@ class ViewFunctionRule implements Rule
          */
         if (empty($funcCall->getArgs())) return [];
 
-        $this->blade_analyser->set_registry($this->container->getByType(Registry::class));
         return $this->blade_analyser->check($scope, $funcCall->getLine(), $funcCall->getArgs()[0], $funcCall->getArgs()[1] ?? null);
     }
 }
