@@ -36,5 +36,21 @@
             {{ $oups }}
         @endforeach
     @endforeach
+
+    @php
+        /** @var string */
+        $value = config('app.name');
+        $value_without_doc_block = config('app.name');
+
+        $constant_string = 'Hi!';
+        $constant_int = 42;
+    @endphp
+
+    {{ $value }}
+    {{ $value_without_doc_block }}
+
+    {{ $constant_string }}
+    {{ $constant_int }}
+    {{ $constant_int + $constant_string }}
 </body>
 </html>

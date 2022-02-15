@@ -4,18 +4,20 @@
   1      Variable $user might not be defined.                        
  ------ ------------------------------------------------------------ 
 
- ------ --------------------------------------------------------------- 
-  Line   welcome from Http/Controllers/Controller.php:23                
- ------ --------------------------------------------------------------- 
-  10     Access to an undefined property App\Models\User::$emai.        
-  10     Access to an undefined property App\Models\User::$nam.         
-  12     Variable $invoice might not be defined.                        
-  20     Access to an undefined property                                
-         App\Http\Controllers\Controller::$not_existing.                
-  22     Cannot call method format() on string.                         
-  35     Argument of an invalid type string supplied for foreach, only  
-         iterables are supported.                                       
- ------ --------------------------------------------------------------- 
+ ------ ---------------------------------------------------------------- 
+  Line   welcome from Http/Controllers/Controller.php:23                 
+ ------ ---------------------------------------------------------------- 
+  10     Access to an undefined property App\Models\User::$emai.         
+  10     Access to an undefined property App\Models\User::$nam.          
+  12     Variable $invoice might not be defined.                         
+  20     Access to an undefined property                                 
+         App\Http\Controllers\Controller::$not_existing.                 
+  22     Cannot call method format() on string.                          
+  35     Argument of an invalid type string supplied for foreach, only   
+         iterables are supported.                                        
+  50     Parameter #1 (mixed) of echo cannot be converted to string.     
+  54     Binary operation "+" between 42 and 'Hi!' results in an error.  
+ ------ ---------------------------------------------------------------- 
 
  ------ --------------------------------------------------------- 
   Line   Http/Controllers/Controller.php                          
@@ -23,5 +25,5 @@
   20     Access to an undefined property App\Models\User::$emai.  
  ------ --------------------------------------------------------- 
 
- [ERROR] Found 8 errors                                                         
+ [ERROR] Found 10 errors                                                        
 

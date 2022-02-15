@@ -294,6 +294,14 @@ class BladeRule implements Rule
          */
         $html_and_php_content = $this->blade_compiler()->compileString($blade_content_with_lines_numbers);
 
+
+        /**
+         * Ok. This is the hard part.
+         * We will transform the mix of HTML and PHP to only PHP lines with the comment (view and line number) the line before.
+         * 
+         * For each line we will try to match the comment first. If there is no comment we will use the previous one.
+         */
+
         $html_and_php_content_lines = explode(PHP_EOL, $html_and_php_content);
 
         $php_content_lines = [];
