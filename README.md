@@ -19,3 +19,13 @@ includes:
 parameters:
     …
 ```
+
+## Features
+
+- [x] Analyse `view()` calls
+- [x] Support Blade directives
+- [x] Support views namespaces
+- [x] Support Livewire components
+- [ ] Support mailable views
+- [ ] Support `@includes`
+- [ ] Support `compact` function for view parameters
