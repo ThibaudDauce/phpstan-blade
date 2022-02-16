@@ -10,20 +10,20 @@
   1      Variable $user might not be defined.                     
  ------ --------------------------------------------------------- 
 
- ------ ---------------------------------------------------------------- 
-  Line   addition ← welcome:42 ← Http/Controllers/Controller.php:23      
- ------ ---------------------------------------------------------------- 
-  1      Binary operation "+" between 'Hi!' and 42 results in an error.  
- ------ ---------------------------------------------------------------- 
+ ------ --------------------------------------------------------------------- 
+  Line   addition ← user:7 ← welcome:35 ← Http/Controllers/Controller.php:23  
+ ------ --------------------------------------------------------------------- 
+  1      Binary operation "+" between int and string results in an error.     
+ ------ --------------------------------------------------------------------- 
 
- ------ ---------------------------------------------------------------------- 
-  Line   addition ← user:42 ← welcome:42 ← Http/Controllers/Controller.php:23  
- ------ ---------------------------------------------------------------------- 
-  1      Binary operation "+" between int and 'string' results in an error.    
- ------ ---------------------------------------------------------------------- 
+ ------ ------------------------------------------------------------------ 
+  Line   addition ← welcome:63 ← Http/Controllers/Controller.php:23        
+ ------ ------------------------------------------------------------------ 
+  1      Binary operation "+" between string and int results in an error.  
+ ------ ------------------------------------------------------------------ 
 
  ------ --------------------------------------------------------- 
-  Line   user ← welcome:42 ← Http/Controllers/Controller.php:23   
+  Line   user ← welcome:35 ← Http/Controllers/Controller.php:23   
  ------ --------------------------------------------------------- 
   3      Access to an undefined property App\Models\User::$di.    
   3      Access to an undefined property App\Models\User::$oups.  

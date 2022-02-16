@@ -3,6 +3,7 @@
 namespace ThibaudDauce\PHPStanBlade;
 
 use Exception;
+use Illuminate\Support\Arr;
 use PhpParser\Node;
 use PhpParser\Parser;
 use PhpParser\Node\Arg;
@@ -10,6 +11,7 @@ use ReflectionProperty;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Stmt;
 use PHPStan\Type\ThisType;
+use PHPStan\Analyser\Error;
 use PHPStan\Analyser\Scope;
 use PHPStan\Rules\Registry;
 use Illuminate\View\Factory;
@@ -17,10 +19,8 @@ use PhpParser\NodeTraverser;
 use PhpParser\ParserFactory;
 use PHPStan\Rules\RuleError;
 use PHPStan\Type\ObjectType;
-use PhpParser\Node\Stmt\Echo_;
 use PhpParser\Node\Expr\Array_;
 use PhpParser\ConstExprEvaluator;
-use PhpParser\Node\Scalar\String_;
 use PhpParser\NodeVisitorAbstract;
 use PHPStan\Rules\RuleErrorBuilder;
 use Illuminate\Support\ViewErrorBag;
@@ -30,6 +30,11 @@ use Illuminate\View\ViewFinderInterface;
 use PHPStan\DependencyInjection\Container;
 use PhpParser\ConstExprEvaluationException;
 use Illuminate\View\Compilers\BladeCompiler;
+use PhpParser\Node\Expr\ArrayItem;
+use PhpParser\Node\Expr\FuncCall;
+use PhpParser\Node\Expr\StaticCall;
+use PhpParser\Node\Identifier;
+use PhpParser\Node\Name;
 use PHPStan\Type\Constant\ConstantStringType;
 use Symplify\TemplatePHPStanCompiler\ValueObject\VariableAndType;
 use Symplify\TemplatePHPStanCompiler\PHPStan\FileAnalyserProvider;
@@ -57,28 +62,15 @@ class BladeAnalyser
         $this->parser  = $parserFactory->create(ParserFactory::PREFER_PHP7);
     }
 
-    public function set_registry(Registry $registry): void
+    /**
+     * @param array<array{file: string, line: int, name: ?string}> $stacktrace
+     * @return array<RuleError>
+     */
+    public function check(Scope $scope, int $controller_line, Arg $view_name_arg, ?Arg $view_parameters_arg, ?Arg $merge_data_arg, array $stacktrace): array
     {
-        $this->registry = $registry;
-    }
-
-    public function check(Scope $scope, int $controller_line, Arg $view_name_arg, ?Arg $view_parameters_arg): array
-    {
-        $first_parameter = $view_name_arg->value;
-        if ($view_parameters_arg) {
-            if ($view_parameters_arg->value instanceof Array_) {
-                $parameters_array = $view_parameters_arg->value;
-            } else {
-                /**
-                 * Here the second parameter is not an array, it could be:
-                 * - view('welcome', compact('user')) @todo support compact
-                 * - view('welcome', $parameters)     @todo support variable array
-                 */
-                return [];
-            }
-        } else {
-            $parameters_array = new Array_;
-        }
+        $tabs = str_repeat("\t", count($stacktrace) - 1);
+        // echo "[BLADE] {$tabs} Checking {$scope->getFile()}:{$controller_line}…\n";
+        $tabs = str_repeat("\t", count($stacktrace));
 
         /**
          * We will try to find the string behind the first parameter, it could be:
@@ -86,11 +78,13 @@ class BladeAnalyser
          * - view($view_name) where $view_name = 'welcome';          a variable with a constant string inside
          * - view(view_name()) where view_name() return 'welcome'    a function with a constant return
          */
-        $view_name = $this->evaluate_string($first_parameter, $scope);
+        $view_name = $this->evaluate_string($view_name_arg->value, $scope);
 
         // If the first parameter is not constant, we return no errors because we cannot 
         // find the name of the view.
         if (! $view_name) return [];
+
+        // echo "[BLADE] {$tabs} View is {$view_name}\n";
 
         /**
          * Here we use the `templateVariableTypesResolver` to transform the view parameters array to a list of 
@@ -116,8 +110,21 @@ class BladeAnalyser
          * [AT]var int $age
          * [At]var Illuminate\Eloquent\Collection<App\Models\User> $users
          */
-        $variables_and_types = $this->templateVariableTypesResolver->resolveArray($parameters_array, $scope);
+        $variables_and_types = [];
 
+        /**
+         * @todo Fix the incorrect merge priority
+         */
+
+        $data = $this->get_variables_and_types_from_arg($scope, $view_parameters_arg);
+        if ($data) {
+            $variables_and_types = array_merge($variables_and_types, $data);
+        }
+
+        $merge_data = $this->get_variables_and_types_from_arg($scope, $merge_data_arg);
+        if ($merge_data) {
+            $variables_and_types = array_merge($variables_and_types, $merge_data);
+        }
             
         /**
          * If the view parameters contains `$this` the type found by `templateVariableTypesResolver` is incorrect.
@@ -184,23 +191,28 @@ class BladeAnalyser
         /**
          * We have the view name, we have the view parameters, let's analyse the Blade content!
          */
-        return $this->process_view($scope, $controller_line, $view_name, $variables_and_types);
+        return $this->process_view($scope, $controller_line, $view_name, $variables_and_types, $stacktrace);
     }
     /**
      * @param VariableAndType[] $variables_and_types
-     * @return RuleError[]
+     * @param array<array{file: string, line: int, name: ?string}> $stacktrace
+     * @return array<RuleError>
      */
-    private function process_view(Scope $scope, int $controller_line, string $view_name, array $variables_and_types): array
+    private function process_view(Scope $scope, int $controller_line, string $view_name, array $variables_and_types, array $stacktrace): array
     {
+        $tabs = str_repeat("\t", count($stacktrace));
+
         // We use Laravel to find the path to the Blade view.
         $view_path = $this->view_finder()->find($view_name);
+
+        // echo "[BLADE] {$tabs} View path is {$view_path}\n";
 
         /**
          * This function will analyse the Blade view to find errors.
          * The main complexity is to prepare the file to keep the view name and the file number information (so we can
          * repport the error at the right location).
          */
-        $html_and_php_content = $this->get_php_and_html_content($scope, $view_name, $view_path);
+        $html_and_php_content = $this->get_php_and_html_content($scope, $view_name, $view_path, $stacktrace);
 
         
         /**
@@ -223,7 +235,7 @@ class BladeAnalyser
         $php_content_lines = [];
         $inside_php = false;
         foreach ($html_and_php_content_lines as $line) {
-            preg_match('#(?P<comment>/\*\* view_name: .*?, view_path: .*?, line: \d+, includes_stacktrace: .*? \*/)?(?P<tail>.*)#', $line, $matches);
+            preg_match('#(?P<comment>/\*\* view_name: .*?, view_path: .*?, line: \d+, stacktrace: .*? \*/)?(?P<tail>.*)#', $line, $matches);
 
             if (! $matches || ! $matches['tail']) continue;
 
@@ -294,7 +306,7 @@ class BladeAnalyser
          * If the folder doesn't exists, let's create it.
          */
         $cache_folder = sys_get_temp_dir() . '/phpstan-blade/';
-        $cache_file_name =  md5($view_path) . '-blade-compiled.php';
+        $cache_file_name = md5($view_path . json_encode($stacktrace)) . '-blade-compiled.php';
 
         $tmp_file_path = "{$cache_folder}{$cache_file_name}";
         if (! is_dir($cache_folder)) mkdir($cache_folder);
@@ -346,10 +358,16 @@ class BladeAnalyser
         $php_content = $this->printerStandard->prettyPrintFile($stmts);
         file_put_contents($tmp_file_path, $php_content);
 
+
         /**
          * Here we use some PHPStan classes (not covered by semver, be careful!) to analyse the file and get the errors.
          */
+        // echo "[BLADE] {$tabs} Analysing {$tmp_file_path} ({$view_name}) with PHPStan…\n";
+        $start = microtime(true);
         $analyse_result = $this->fileAnalyserProvider->provide()->analyseFile($tmp_file_path, [], $this->phpstan_container->getByType(Registry::class), null); // @phpstan-ignore-line
+        $time = number_format(microtime(true) - $start, 2);
+        // echo "[BLADE] {$tabs} End of analyse of {$tmp_file_path} ({$view_name}) in {$time}s.\n";
+        
         $raw_errors = $analyse_result->getErrors(); // @phpstan-ignore-line
 
         /**
@@ -360,6 +378,18 @@ class BladeAnalyser
         $php_content_lines = explode(PHP_EOL, $php_content);
         $errors = [];
         foreach ($raw_errors as $raw_error) {
+            if ($raw_error->getMetadata()['view_name'] ?? null) {
+                if (! $line = $raw_error->getLine()) throw new Exception("Receive a view error without line number");
+
+                $error = RuleErrorBuilder::message($raw_error->getMessage())
+                    ->file($raw_error->getFile())
+                    ->line($line)
+                    ->metadata($raw_error->getMetadata())
+                    ->build();
+                $errors[] = $error;
+                continue;
+            }
+
             /**
              * We'll start at the line before the line with the error because we our lines are:
              * - comment
@@ -381,7 +411,7 @@ class BladeAnalyser
             do {
                 $comment_index--;
                 $comment_of_line_with_error = $php_content_lines[$comment_index];
-                preg_match('#/\*\* view_name: (?P<view_name>.*), view_path: (?P<view_path>.*), line: (?P<line>\d+), includes_stacktrace: (?P<includes_stacktrace>.*) \*/#', $comment_of_line_with_error, $matches);
+                preg_match('#/\*\* view_name: (?P<view_name>.*), view_path: (?P<view_path>.*), line: (?P<line>\d+), stacktrace: (?P<stacktrace>.*) \*/#', $comment_of_line_with_error, $matches);
             } while (! $matches && $comment_index >= 0);
 
             /**
@@ -389,7 +419,7 @@ class BladeAnalyser
              */
             if (! $matches) {
                 $line_with_error = $php_content_lines[$raw_error->getLine() - 1];
-                throw new Exception("Cannot find comment with view name and lines before \"{$line_with_error}\" for error \"{$raw_error->getMessage()}\"");
+                throw new Exception("Cannot find comment with view name and lines before \"{$line_with_error}\" for error \"{$raw_error->getMessage()}\" on line  {$raw_error->getLine()} (look into {$tmp_file_path}.");
             }
 
             /**
@@ -404,7 +434,7 @@ class BladeAnalyser
                     'view_name' => $matches['view_name'],
                     'controller_path' => $scope->getFile(),
                     'controller_line' => $controller_line,
-                    'includes_stacktrace' => json_decode($matches['includes_stacktrace']),
+                    'stacktrace' => json_decode($matches['stacktrace']),
                 ])
                 ->build();
             $errors[] = $error;
@@ -430,10 +460,12 @@ class BladeAnalyser
     }
 
     /**
-     * @param array<string, array{0: string, 1: int}> $includes_stacktrace
+     * @param array<string, array{file: string, line: int, name: ?string}> $stacktrace
      */
-    private function get_php_and_html_content(Scope $scope, string $view_name, string $view_path, array $includes_stacktrace = []): string
+    private function get_php_and_html_content(Scope $scope, string $view_name, string $view_path, array $stacktrace = []): string
     {
+        $tabs = str_repeat("\t", count($stacktrace));
+
         /**
          * There is some problems with the PHPStan cache, if you want more information go inside the CacheManager class
          * but it's not required to understand the `process_view` function.
@@ -444,21 +476,21 @@ class BladeAnalyser
          * We get the Blade content, if the file doesn't exists, Larastan should catch this, so we return no errors here.
          * If there is no content inside the view file, there is no error possible so return early.
          */
-        if (! file_exists($view_path)) return [];
+        if (! file_exists($view_path)) return '';
 
         $blade_content = file_get_contents($view_path);
-        if (! $blade_content) return [];
+        if (! $blade_content) return '';
 
         /**
          * We add a comment before each Blade line with the view name and the line.
          */
         $blade_lines = explode(PHP_EOL, $blade_content);
 
-        $includes_stacktrace_as_string = json_encode($includes_stacktrace);
+        $stacktrace_as_string = json_encode($stacktrace);
         $blade_lines_with_lines_numbers = [];
         foreach ($blade_lines as $i => $line) {
             $line_number = $i + 1;
-            $blade_lines_with_lines_numbers[$i] = "/** view_name: {$view_name}, view_path: {$view_path}, line: {$line_number}, includes_stacktrace: {$includes_stacktrace_as_string} */{$line}";
+            $blade_lines_with_lines_numbers[$i] = "/** view_name: {$view_name}, view_path: {$view_path}, line: {$line_number}, stacktrace: {$stacktrace_as_string} */{$line}";
         }
 
         $blade_content_with_lines_numbers = implode(PHP_EOL, $blade_lines_with_lines_numbers);
@@ -468,85 +500,11 @@ class BladeAnalyser
          * Almost each line will have the comment with view name and line number at the beginning
          * but if one Blade line is compiled to multiple PHP lines the comment is only present on the first line.
          */
+        // echo "[BLADE] {$tabs} Compiling {$view_path} with Blade compiler…\n";
+        $start = microtime(true);
         $html_and_php_content =  $this->blade_compiler()->compileString($blade_content_with_lines_numbers);
-
-        /**
-         * First we'll try to find all includes and recursivly add them inside the PHP content.
-         */
-        while (true) {
-            preg_match('#<\?php echo \$__env->make\((.+?), \\\Illuminate\\\Support\\\Arr::except\(get_defined_vars\(\), \[\'__data\', \'__path\']\)\)->render\(\); \?>#s', $html_and_php_content, $matches, PREG_OFFSET_CAPTURE);
-
-            if (! $matches) break; // No more includes
-
-            $include_php = $matches[0][0];
-            try {
-                $include_statements = $this->parser->parse($include_php);
-            } catch (Exception $e) {
-                throw new Exception("Cannot parse PHP code for include {$include_php}.");
-            }
-            if (! $include_statements) throw new Exception("Cannot parse PHP code for include {$include_php}.");
-            if (count($include_statements) !== 1) throw new Exception("PHP code for include is not one statement {$include_php}.");
-            
-            $include_statement = $include_statements[0];
-            if (! ($include_statement instanceof Echo_)) throw new Exception("PHP code for include is not one echo statement {$include_php}.");
-
-            $render_method_call = $include_statement->exprs[0];
-            if ($render_method_call->name->name !== 'render') throw new Exception();
-
-            $make_method_call = $render_method_call->var;
-            if ($make_method_call->name->name !== 'make') throw new Exception();
-
-            $args = $make_method_call->getArgs();
-            if (count($args) === 0 || count($args) === 1) {
-                throw new Exception;
-            } elseif (count($args) === 2) {
-                $first_parameter = $args[0];
-            } elseif (count($args) === 3) {
-                $first_parameter = $args[0];
-                $second_parameter = $args[1];
-            } else {
-                throw new Exception;
-            }
-
-            if (! ($first_parameter->value instanceof String_)) {
-                $html_and_php_content = substr_replace($html_and_php_content, '', $matches[0][1], strlen($matches[0][0]));
-                continue;
-            }
-
-            $include_view_name = $first_parameter->value->value;
-            $include_view_path = $this->view_finder()->find($include_view_name);
-
-
-            $variables_definitions = [];
-            $variables_reseting = [];
-            if (isset($second_parameter)) {
-                if (! ($second_parameter->value instanceof Array_)) throw new Exception("Second parameter to @include should be an array {$include_php}.");
-    
-                $variables = $second_parameter->value->items;
-    
-                $variables_definitions = [];
-                $variables_reseting    = [];
-                foreach ($variables as $array_item) {
-                    if (! $array_item) continue;
-                    if (! ($array_item->key instanceof String_)) continue;
-    
-                    $variableName          = $array_item->key->value;
-                    $temporaryVariableName = '__previous' . ucfirst($variableName);
-                    $phpExpression         = $this->printerStandard->prettyPrintExpr($array_item->value);
-    
-                    $variables_definitions[] = sprintf('<?php if (isset($%s)) { $%s = $%s; } ?>', $variableName, $temporaryVariableName, $variableName);
-                    $variables_definitions[] = sprintf('<?php $%s = %s; ?>', $variableName, $phpExpression);
-    
-                    $variables_reseting[] = sprintf('<?php if (isset($%s)) { $%s = $%s; } else { unset($%s); } ?>', $temporaryVariableName, $variableName, $temporaryVariableName, $variableName);
-                }
-            }
-
-            $new_include_stacktrace = array_merge($includes_stacktrace, [[$view_name, 42]]);
-
-            $include_php_and_html_content = PHP_EOL . implode(PHP_EOL, $variables_definitions) . PHP_EOL . $this->get_php_and_html_content($scope, $include_view_name, $include_view_path, $new_include_stacktrace) . PHP_EOL . implode(PHP_EOL, $variables_reseting) . PHP_EOL;
-
-            $html_and_php_content = substr_replace($html_and_php_content, $include_php_and_html_content, $matches[0][1], strlen($matches[0][0]));
-        }
+        $time = number_format(microtime(true) - $start, 2);
+        // echo "[BLADE] {$tabs} End of compilation of {$view_path} in {$time}s.\n";
 
         return $html_and_php_content;
     }
@@ -580,5 +538,48 @@ class BladeAnalyser
         $blade_compiler->withoutComponentTags();
 
         return $blade_compiler;
+    }
+
+    /**
+     * @return array<VariableAndType>
+     */
+    private function get_variables_and_types_from_arg(Scope $scope, ?Arg $array_argument): ?array
+    {
+        if (! $array_argument) return [];
+
+        if ($array_argument->value instanceof Array_) {
+            return  $this->templateVariableTypesResolver->resolveArray($array_argument->value, $scope);
+        } else {
+            /**
+             * The argument could be:
+             * - compact('user')                                               @todo
+             * - $parameter                 where $parameter = […]             @todo
+             * - \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path'])
+             */
+
+            if (
+                $array_argument->value instanceof StaticCall &&
+                $array_argument->value->class instanceof Name &&
+                $scope->resolveName($array_argument->value->class) === Arr::class &&
+                $array_argument->value->name instanceof Identifier &&
+                $array_argument->value->name->name === 'except' &&
+                $array_argument->value->args[0]->value instanceof FuncCall &&
+                $array_argument->value->args[0]->value->name instanceof Name &&
+                $scope->resolveName($array_argument->value->args[0]->value->name) === 'get_defined_vars' &&
+                $array_argument->value->args[1]->value instanceof Array_
+            ) {
+                /**
+                 * @todo Check the second argument to except and remove these keys.
+                 */
+
+                $result = [];
+                foreach ($scope->getDefinedVariables() as $variable_name) {
+                    $result[] = new VariableAndType($variable_name, $scope->getVariableType($variable_name));
+                }
+                return $result;
+            }
+
+            return null;
+        }
     }
 }

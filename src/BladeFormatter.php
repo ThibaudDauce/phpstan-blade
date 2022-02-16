@@ -42,23 +42,18 @@ class BladeFormatter
             /** @var string */
             $controller_path = $fileSpecificError->getMetadata()['controller_path'] ?? null;
 
-            /** @var array<array{0: string, 1: int}> */
-            $includes_stacktrace = $fileSpecificError->getMetadata()['includes_stacktrace'] ?? null;
+            /** @var null|array<\stdClass> */
+            $stacktrace = $fileSpecificError->getMetadata()['stacktrace'] ?? null;
 
-            $error_path = $this->relativePathHelper->getRelativePath($fileSpecificError->getFile());
-            
-            if ($view_name && $controller_line && $controller_path) {
-                $controller_relative_path = $this->relativePathHelper->getRelativePath($controller_path);
-
+            if ($view_name && $controller_line && $controller_path && !is_null($stacktrace)) {
                 $key = $view_name;
 
-                foreach (array_reverse($includes_stacktrace) as $stacktrace) {
-                    $key .= " ← <fg=gray>{$stacktrace[0]}:{$stacktrace[1]}</>";
+                foreach (array_reverse($stacktrace) as $stacktrace) {
+                    $file = $stacktrace->name ?? $this->relativePathHelper->getRelativePath($stacktrace->file);
+                    $key .= " ← <fg=gray>{$file}:{$stacktrace->line}</>";
                 }
-
-                $key .= " ← <fg=gray>{$controller_relative_path}:{$controller_line}</>";
             } else {
-                $key = $error_path;
+                $key = $this->relativePathHelper->getRelativePath($fileSpecificError->getFile());
             }
 
             if (! isset($fileErrors[$key])) {

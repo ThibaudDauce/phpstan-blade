@@ -69,6 +69,8 @@ class ViewFunctionRule implements Rule
          */
         if (empty($funcCall->getArgs())) return [];
 
-        return $this->blade_analyser->check($scope, $funcCall->getLine(), $funcCall->getArgs()[0], $funcCall->getArgs()[1] ?? null);
+        return $this->blade_analyser->check($scope, $funcCall->getLine(), $funcCall->getArgs()[0], $funcCall->getArgs()[1] ?? null, null, [
+            ['file' => $scope->getFile(), 'line' => $funcCall->getLine(), 'name' => null],
+        ]);
     }
 }

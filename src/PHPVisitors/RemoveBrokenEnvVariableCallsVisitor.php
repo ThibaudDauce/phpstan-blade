@@ -4,6 +4,7 @@ namespace ThibaudDauce\PHPStanBlade\PHPVisitors;
 
 use PhpParser\Node;
 use PhpParser\Node\Expr\MethodCall;
+use PhpParser\Node\Identifier;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitorAbstract;
 
@@ -35,6 +36,8 @@ class RemoveBrokenEnvVariableCallsVisitor extends NodeVisitorAbstract
     {
         return $node instanceof MethodCall &&
             $node->var instanceof Node\Expr\Variable &&
-            $node->var->name === '__env';
+            $node->var->name === '__env' &&
+            $node->name instanceof Identifier &&
+            $node->name->name !== 'make';
     }
 }

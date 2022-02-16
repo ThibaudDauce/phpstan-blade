@@ -2,17 +2,16 @@
 
 namespace ThibaudDauce\PHPStanBlade;
 
-use PhpParser;
 use PhpParser\Node;
 use PHPStan\Rules\Rule;
-use PhpParser\Node\Name;
 use PHPStan\Analyser\Scope;
-use PHPStan\Rules\Registry;
+use Illuminate\View\Factory as ViewFactory;
 use PHPStan\Type\ObjectType;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Expr\MethodCall;
-use Illuminate\Contracts\View\Factory;
-use PHPStan\DependencyInjection\Container;
+use Illuminate\Contracts\View\Factory as ViewFactoryContract;
+use PhpParser\Node\Arg;
+use PhpParser\Node\VariadicPlaceholder;
 
 /**
  * @implements Rule<MethodCall>
@@ -35,24 +34,49 @@ class ViewFactoryMakeMethodRule implements Rule
 
         // Check the correct object
         if (! ($object_type instanceof ObjectType)) return [];
-        if ($object_type->getClassName() !== Factory::class) return [];
+        if (! in_array($object_type->getClassName(), [ViewFactoryContract::class, ViewFactory::class])) return [];
 
         // Check the correct method
         if (! ($method_call->name instanceof Identifier)) return [];
         $method_name = $method_call->name->name;
         if ($method_name !== 'make') return [];
 
-        if (count($method_call->args) === 0) {
-            return [];
-        } elseif (count($method_call->args) === 1) {
-            return $this->blade_analyser->check($scope, $method_call->getLine(), $method_call->args[0], null);
-        } elseif (count($method_call->args) === 2) {
-            // @todo check the second argument to see if it's data or mergeData
-            return $this->blade_analyser->check($scope, $method_call->getLine(), $method_call->args[0], $method_call->args[1]);
-        } elseif (count($method_call->args) === 3) {
-            return $this->blade_analyser->check($scope, $method_call->getLine(), $method_call->args[0], $method_call->args[1]);
+        $comment = null;
+        $parent = $method_call;
+        while ($parent) {
+            if ($parent->getDocComment()) {
+                $comment = $parent->getDocComment();
+                break;
+            }
+
+            $parent = $parent->getAttribute('parent');
         }
 
-        return [];
+        if ($comment && preg_match('#/\*\* view_name: (?P<view_name>.*), view_path: (?P<view_path>.*), line: (?P<line>\d+), stacktrace: (?P<stacktrace>.*) \*/#', $comment->getText(), $matches)) {
+            /** @var array<array{file: string, line: int, name: ?string}> */
+            $stacktrace = json_decode($matches['stacktrace']);
+            $stacktrace[] = ['file' => $matches['view_path'], 'line' => $matches['line'], 'name' => $matches['view_name']];
+        } else {
+            $stacktrace = [
+                ['file' => $scope->getFile(), 'line' => $method_call->getLine(), 'name' => null],
+            ];
+        }
+
+        /**
+         * Args can be VariadicPlaceholder too `->make(...$args)`, we do not support this here.
+         */
+        $first_argument = $method_call->args[0] ?? null;
+        if (! $first_argument || ($first_argument instanceof VariadicPlaceholder)) return [];
+        
+        $second_argument = $method_call->args[1] ?? null;
+        if ($second_argument && ($second_argument instanceof VariadicPlaceholder)) return [];
+        
+        $third_argument = $method_call->args[2] ?? null;
+        if ($third_argument && ($third_argument instanceof VariadicPlaceholder)) return [];
+
+        /**
+         * @todo merge the third argument with the second.
+         */
+        return $this->blade_analyser->check($scope, $method_call->getLine(), $first_argument, $second_argument, $third_argument, $stacktrace);
     }
 }
