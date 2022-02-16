@@ -39,6 +39,8 @@
         @foreach ($user->email as $oups)
             {{ $oups }}
         @endforeach
+
+        {{ $loop->index }}
     @endforeach
 
     {{ $loop->index }}

@@ -17,6 +17,8 @@ class AddLoopVarTypeToForeachNodeVisitor extends NodeVisitorAbstract
 {
     private ?Expr $expr = null;
 
+    private $loop_count = 0;
+
     /** @return Node[]|null */
     public function enterNode(Node $node): ?array
     {
@@ -26,9 +28,21 @@ class AddLoopVarTypeToForeachNodeVisitor extends NodeVisitorAbstract
 
         if ($node instanceof Foreach_) {
             $this->replace_current_loop($node);
+            
         }
 
         return null;
+    }
+
+    public function leaveNode(Node $node): void
+    {
+        if ($node instanceof Foreach_) {
+            $this->loop_count--;
+
+            if (! $this->loop_count) {
+
+            }
+        }
     }
 
     private function save_assign(Assign $assign): void
@@ -72,22 +86,25 @@ class AddLoopVarTypeToForeachNodeVisitor extends NodeVisitorAbstract
 
         $foreach->expr = $this->expr;
 
-        $doc_nop = new Nop();
-        $doc_nop->setDocComment(new Doc(sprintf(
-            '/** @var %s $%s */',
-            '\\' . Loop::class,
-            'loop'
-        )));
-
-        // Add `$loop` var doc type as the first statement
-        array_unshift($foreach->stmts, $doc_nop);
-
-        // `endforeach` also has a doc comment. Remove that before adding our unset.
-        array_pop($foreach->stmts);
+        if (! $this->loop_count) {
+            $doc_nop = new Nop();
+            $doc_nop->setDocComment(new Doc(sprintf(
+                '/** @var %s $%s */',
+                '\\' . Loop::class,
+                'loop'
+            )));
+    
+            // Add `$loop` var doc type as the first statement
+            array_unshift($foreach->stmts, $doc_nop);
+        }
 
         // Add `unset($loop)` at the end of the loop
         // to prevent accessing this variable outside of loop
-        $foreach->stmts[] = new Node\Stmt\Unset_([new Variable('loop')]);
+        if (! $this->loop_count) {
+            $foreach->stmts[] = new Node\Stmt\Unset_([new Variable('loop')]);
+        }
+
+        $this->loop_count++;
 
         return;
     }
