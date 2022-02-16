@@ -11,19 +11,19 @@
  ------ --------------------------------------------------------- 
 
  ------ ---------------------------------------------------------------------- 
-  Line   addition ← user:14 ← welcome:37 ← Http/Controllers/Controller.php:28  
+  Line   addition ← user:14 ← welcome:41 ← Http/Controllers/Controller.php:28  
  ------ ---------------------------------------------------------------------- 
   1      Binary operation "+" between int and string results in an error.      
  ------ ---------------------------------------------------------------------- 
 
  ------ ------------------------------------------------------------------ 
-  Line   addition ← welcome:69 ← Http/Controllers/Controller.php:28        
+  Line   addition ← welcome:73 ← Http/Controllers/Controller.php:28        
  ------ ------------------------------------------------------------------ 
   1      Binary operation "+" between string and int results in an error.  
  ------ ------------------------------------------------------------------ 
 
  ------ ----------------------------------------------------------- 
-  Line   user ← welcome:37 ← Http/Controllers/Controller.php:28     
+  Line   user ← welcome:41 ← Http/Controllers/Controller.php:28     
  ------ ----------------------------------------------------------- 
   6      Access to undefined constant App\Models\User::HELLO_WORL.  
   10     Access to an undefined property App\Models\User::$di.      
@@ -39,13 +39,13 @@
   20     Access to an undefined property                                 
          App\Http\Controllers\Controller::$not_existing.                 
   22     Cannot call method format() on string.                          
-  39     Argument of an invalid type string supplied for foreach, only   
+  43     Argument of an invalid type string supplied for foreach, only   
          iterables are supported.                                        
-  46     Variable $loop might not be defined.                            
-  58     Parameter #1 (mixed) of echo cannot be converted to string.     
-  62     Binary operation "+" between 42 and 'Hi!' results in an error.  
-  82     Access to undefined constant App\Models\User::HELLO_WORL.       
-  91     Cannot access property $email on mixed.                         
+  50     Variable $loop might not be defined.                            
+  62     Parameter #1 (mixed) of echo cannot be converted to string.     
+  66     Binary operation "+" between 42 and 'Hi!' results in an error.  
+  86     Access to undefined constant App\Models\User::HELLO_WORL.       
+  95     Cannot access property $email on mixed.                         
  ------ ---------------------------------------------------------------- 
 
  [ERROR] Found 18 errors                                                        

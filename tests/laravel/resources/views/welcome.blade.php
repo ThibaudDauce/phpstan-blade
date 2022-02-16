@@ -22,6 +22,10 @@
     @datetime($user->email)
 
     @datetime(now())
+    
+    @if ($users->isEmpty())
+        Empty users
+    @endif
 
     @foreach ($users as $user)
         {{ $loop->index }}

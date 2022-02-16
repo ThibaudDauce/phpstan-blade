@@ -3,52 +3,52 @@
 namespace ThibaudDauce\PHPStanBlade;
 
 use Exception;
-use Illuminate\Support\Arr;
 use PhpParser\Node;
 use PhpParser\Parser;
 use PhpParser\Node\Arg;
 use ReflectionProperty;
 use PhpParser\Node\Expr;
+use PhpParser\Node\Name;
 use PhpParser\Node\Stmt;
+use PHPStan\Type\NullType;
 use PHPStan\Type\ThisType;
+use Illuminate\Support\Arr;
 use PHPStan\Analyser\Error;
 use PHPStan\Analyser\Scope;
 use PHPStan\Rules\Registry;
+use PHPStan\Type\MixedType;
 use Illuminate\View\Factory;
 use PhpParser\NodeTraverser;
 use PhpParser\ParserFactory;
 use PHPStan\Rules\RuleError;
 use PHPStan\Type\ObjectType;
+use PhpParser\Node\Identifier;
 use PhpParser\Node\Expr\Array_;
+use PHPStan\Type\VerbosityLevel;
 use PhpParser\ConstExprEvaluator;
+use PhpParser\Node\Expr\FuncCall;
+use PhpParser\Node\Expr\ArrayItem;
 use PhpParser\NodeVisitorAbstract;
+use PhpParser\Node\Expr\StaticCall;
 use PHPStan\Rules\RuleErrorBuilder;
 use Illuminate\Support\ViewErrorBag;
 use PhpParser\PrettyPrinter\Standard;
+use PHPStan\Type\GeneralizePrecision;
 use Illuminate\View\AnonymousComponent;
 use Illuminate\View\ViewFinderInterface;
 use PHPStan\DependencyInjection\Container;
 use PhpParser\ConstExprEvaluationException;
 use Illuminate\View\Compilers\BladeCompiler;
-use PhpParser\Node\Expr\ArrayItem;
-use PhpParser\Node\Expr\FuncCall;
-use PhpParser\Node\Expr\StaticCall;
-use PhpParser\Node\Identifier;
-use PhpParser\Node\Name;
-use PHPStan\Type\Constant\ConstantBooleanType;
 use PHPStan\Type\Constant\ConstantFloatType;
-use PHPStan\Type\Constant\ConstantIntegerType;
 use PHPStan\Type\Constant\ConstantStringType;
-use PHPStan\Type\GeneralizePrecision;
-use PHPStan\Type\MixedType;
-use PHPStan\Type\NullType;
+use PHPStan\Type\Constant\ConstantBooleanType;
+use PHPStan\Type\Constant\ConstantIntegerType;
 use Symplify\TemplatePHPStanCompiler\ValueObject\VariableAndType;
 use Symplify\TemplatePHPStanCompiler\PHPStan\FileAnalyserProvider;
 use Symplify\TemplatePHPStanCompiler\NodeFactory\VarDocNodeFactory;
 use ThibaudDauce\PHPStanBlade\PHPVisitors\RemoveEscapeFunctionNodeVisitor;
 use ThibaudDauce\PHPStanBlade\PHPVisitors\AddLoopVarTypeToForeachNodeVisitor;
 use ThibaudDauce\PHPStanBlade\PHPVisitors\RemoveBrokenEnvVariableCallsVisitor;
-use Symplify\TemplatePHPStanCompiler\TypeAnalyzer\TemplateVariableTypesResolver;
 
 class BladeAnalyser
 {
@@ -57,7 +57,6 @@ class BladeAnalyser
     public function __construct(
         private Container $phpstan_container,
         private ConstExprEvaluator $constExprEvaluator,
-        private TemplateVariableTypesResolver $templateVariableTypesResolver,
         private FileAnalyserProvider $fileAnalyserProvider,
         private Standard $printerStandard,
         private VarDocNodeFactory $varDocNodeFactory,
@@ -161,6 +160,10 @@ class BladeAnalyser
 
         foreach ($variables_and_types as $i => $variable_type) {
             $type = $variable_type->getType();
+            if ($variable_type->getVariable() === 'users') {
+                dump($variable_type->getVariable(), get_class($type), $variable_type->getTypeAsString(), $variable_type->getType()->describe(VerbosityLevel::precise()));
+            }
+
             if ($type instanceof ConstantBooleanType || $type instanceof ConstantFloatType || $type instanceof ConstantIntegerType || $type instanceof ConstantStringType) {
                 $variables_and_types[$i] = new VariableAndType($variable_type->getVariable(), $type->generalize(GeneralizePrecision::lessSpecific()));
             }
@@ -566,7 +569,21 @@ class BladeAnalyser
         if (! $array_argument) return [];
 
         if ($array_argument->value instanceof Array_) {
-            return  $this->templateVariableTypesResolver->resolveArray($array_argument->value, $scope);
+            $result = [];
+
+            foreach ($array_argument->value->items as $array_item) {
+                if (! $array_item instanceof ArrayItem) continue;
+                if ($array_item->key === null) continue;
+
+                $key = $this->constExprEvaluator->evaluateDirectly($array_item->key);
+                if (! is_string($key)) continue;
+
+                $type = $scope->getType($array_item->value);
+
+                $result[] = new VariableAndType($key, $type);
+            }
+
+            return $result;
         } else {
             /**
              * The argument could be:
