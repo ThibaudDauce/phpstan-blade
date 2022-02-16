@@ -32,6 +32,7 @@ class Controller extends BaseController
             'testing' => false,
             'maybe_user' => $maybe_user,
             'maybe_user_with_correct_type' => $maybe_user_with_correct_type,
+            'pagination' => User::paginate(),
         ]);
     }
 

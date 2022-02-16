@@ -460,6 +460,14 @@ class BladeAnalyser
             $errors[] = $error;
         }
 
+        /**
+         * @todo do not remove e() calls and remove errors about calling e() with int/float/bool
+         */
+        $errors = array_filter($errors, function (RuleError $error) {
+            return $error->getMessage() !== 'Parameter #1 (Illuminate\Contracts\Support\Htmlable) of echo cannot be converted to string.'
+                && $error->getMessage() !== 'Parameter #1 (Illuminate\Contracts\Support\DeferringDisplayableValue) of echo cannot be converted to string.';
+        });
+
         return $errors;
     }
 

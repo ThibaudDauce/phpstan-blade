@@ -98,5 +98,7 @@
     @if ($maybe_user_with_correct_type)
         {{ $maybe_user_with_correct_type->email }}
     @endif
+
+    {{ $pagination->links() }}
 </body>
 </html>
