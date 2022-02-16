@@ -20,10 +20,18 @@ class Controller extends BaseController
         $email = $user->emai; // Typo
         $email = $user->email;
 
+        $maybe_user = null;
+
+        /** @var ?User */
+        $maybe_user_with_correct_type = null;
+
         return view('welcome', [
             'user' => $user,
             'controller' => $this,
             'users' => User::all(),
+            'testing' => false,
+            'maybe_user' => $maybe_user,
+            'maybe_user_with_correct_type' => $maybe_user_with_correct_type,
         ]);
     }
 

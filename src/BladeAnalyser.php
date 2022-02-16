@@ -35,7 +35,13 @@ use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
+use PHPStan\Type\Constant\ConstantBooleanType;
+use PHPStan\Type\Constant\ConstantFloatType;
+use PHPStan\Type\Constant\ConstantIntegerType;
 use PHPStan\Type\Constant\ConstantStringType;
+use PHPStan\Type\GeneralizePrecision;
+use PHPStan\Type\MixedType;
+use PHPStan\Type\NullType;
 use Symplify\TemplatePHPStanCompiler\ValueObject\VariableAndType;
 use Symplify\TemplatePHPStanCompiler\PHPStan\FileAnalyserProvider;
 use Symplify\TemplatePHPStanCompiler\NodeFactory\VarDocNodeFactory;
@@ -110,6 +116,7 @@ class BladeAnalyser
          * [AT]var int $age
          * [At]var Illuminate\Eloquent\Collection<App\Models\User> $users
          */
+        /** @var array<VariableAndType> */
         $variables_and_types = [];
 
         /**
@@ -149,6 +156,17 @@ class BladeAnalyser
             $type = $variable_type->getType();
             if ($type instanceof ThisType) {
                 $variables_and_types[$i] = new VariableAndType($variable_type->getVariable(), $type->getStaticObjectType());
+            }
+        }
+
+        foreach ($variables_and_types as $i => $variable_type) {
+            $type = $variable_type->getType();
+            if ($type instanceof ConstantBooleanType || $type instanceof ConstantFloatType || $type instanceof ConstantIntegerType || $type instanceof ConstantStringType) {
+                $variables_and_types[$i] = new VariableAndType($variable_type->getVariable(), $type->generalize(GeneralizePrecision::lessSpecific()));
+            }
+
+            if ($type instanceof NullType) {
+                $variables_and_types[$i] = new VariableAndType($variable_type->getVariable(), new MixedType);
             }
         }
 

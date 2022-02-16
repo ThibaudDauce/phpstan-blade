@@ -74,5 +74,19 @@
 
     {{ User::HELLO_WORLD }}
     {{ User::HELLO_WORL }}
+
+    @if ($testing)
+        testing
+    @else
+        not testing
+    @endif
+
+    @if ($maybe_user)
+        {{ $maybe_user->email }}
+    @endif
+
+    @if ($maybe_user_with_correct_type)
+        {{ $maybe_user_with_correct_type->email }}
+    @endif
 </body>
 </html>
