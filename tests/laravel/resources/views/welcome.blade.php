@@ -24,6 +24,8 @@
     @datetime(now())
 
     @foreach ($users as $user)
+        {{ $loop->index }}
+
         {{ $user->email }}
 
         @foreach (['one', 'two', 'three'] as $text)
@@ -38,6 +40,8 @@
             {{ $oups }}
         @endforeach
     @endforeach
+
+    {{ $loop->index }}
 
     @php
         /** @var string */

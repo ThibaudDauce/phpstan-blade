@@ -5,10 +5,13 @@ namespace ThibaudDauce\PHPStanBlade\PHPVisitors;
 use Exception;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
+use PhpParser\Comment\Doc;
+use PhpParser\Node\Stmt\Nop;
 use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Stmt\Foreach_;
 use PhpParser\NodeVisitorAbstract;
+use Vural\PHPStanBladeRule\ValueObject\Loop;
 
 class AddLoopVarTypeToForeachNodeVisitor extends NodeVisitorAbstract
 {
@@ -68,6 +71,23 @@ class AddLoopVarTypeToForeachNodeVisitor extends NodeVisitorAbstract
         }
 
         $foreach->expr = $this->expr;
+
+        $doc_nop = new Nop();
+        $doc_nop->setDocComment(new Doc(sprintf(
+            '/** @var %s $%s */',
+            '\\' . Loop::class,
+            'loop'
+        )));
+
+        // Add `$loop` var doc type as the first statement
+        array_unshift($foreach->stmts, $doc_nop);
+
+        // `endforeach` also has a doc comment. Remove that before adding our unset.
+        array_pop($foreach->stmts);
+
+        // Add `unset($loop)` at the end of the loop
+        // to prevent accessing this variable outside of loop
+        $foreach->stmts[] = new Node\Stmt\Unset_([new Variable('loop')]);
 
         return;
     }
