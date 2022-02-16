@@ -12,15 +12,13 @@ Install the extension with Composer.
 composer require thibaud-dauce/phpstan-blade
 ```
 
-Add the extension config file to your `phpstan.neon` and the two `services.neon` from symplify:
+Add the extension config file to your `phpstan.neon`:
 
 ```neon
 includes:
     - ./phpstan-baseline.neon
     - ./vendor/nunomaduro/larastan/extension.neon
     - ./vendor/thibaud-dauce/phpstan-blade/extension.neon
-    - ./vendor/symplify/template-phpstan-compiler/config/services.neon
-    - ./vendor/symplify/astral/config/services.neon
 
 parameters:
     …

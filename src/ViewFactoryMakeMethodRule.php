@@ -10,7 +10,6 @@ use PHPStan\Type\ObjectType;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Expr\MethodCall;
 use Illuminate\Contracts\View\Factory as ViewFactoryContract;
-use PhpParser\Node\Arg;
 use PhpParser\Node\VariadicPlaceholder;
 
 /**

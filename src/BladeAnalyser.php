@@ -10,6 +10,7 @@ use ReflectionProperty;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Name;
 use PhpParser\Node\Stmt;
+use PhpParser\Comment\Doc;
 use PHPStan\Type\NullType;
 use PHPStan\Type\ThisType;
 use Illuminate\Support\Arr;
@@ -17,6 +18,7 @@ use PHPStan\Analyser\Scope;
 use PHPStan\Rules\Registry;
 use PHPStan\Type\MixedType;
 use Illuminate\View\Factory;
+use PhpParser\Node\Stmt\Nop;
 use PhpParser\NodeTraverser;
 use PhpParser\ParserFactory;
 use PHPStan\Rules\RuleError;
@@ -27,6 +29,7 @@ use PhpParser\ConstExprEvaluator;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\ArrayItem;
 use PhpParser\NodeVisitorAbstract;
+use PHPStan\Analyser\FileAnalyser;
 use PhpParser\Node\Expr\StaticCall;
 use PHPStan\Rules\RuleErrorBuilder;
 use Illuminate\Support\ViewErrorBag;
@@ -37,13 +40,11 @@ use Illuminate\View\ViewFinderInterface;
 use PHPStan\DependencyInjection\Container;
 use PhpParser\ConstExprEvaluationException;
 use Illuminate\View\Compilers\BladeCompiler;
-use PHPStan\Analyser\FileAnalyser;
 use PHPStan\Type\Constant\ConstantFloatType;
 use PHPStan\Type\Constant\ConstantStringType;
 use PHPStan\Type\Constant\ConstantBooleanType;
 use PHPStan\Type\Constant\ConstantIntegerType;
-use Symplify\TemplatePHPStanCompiler\ValueObject\VariableAndType;
-use Symplify\TemplatePHPStanCompiler\NodeFactory\VarDocNodeFactory;
+use PHPStan\Type\VerbosityLevel;
 use ThibaudDauce\PHPStanBlade\PHPVisitors\RemoveEscapeFunctionNodeVisitor;
 use ThibaudDauce\PHPStanBlade\PHPVisitors\AddLoopVarTypeToForeachNodeVisitor;
 use ThibaudDauce\PHPStanBlade\PHPVisitors\RemoveBrokenEnvVariableCallsVisitor;
@@ -56,7 +57,6 @@ class BladeAnalyser
         private Container $phpstan_container,
         private ConstExprEvaluator $constExprEvaluator,
         private Standard $printerStandard,
-        private VarDocNodeFactory $varDocNodeFactory,
         private LaravelContainer $container,
         private CacheManager $cache_manager,
     ) {
@@ -148,22 +148,19 @@ class BladeAnalyser
          * 
          * The method ThisType::getStaticObjectType() returns the type of the object inside `ThisType`.
          */
-        foreach ($variables_and_types as $i => $variable_type) {
-            $type = $variable_type->getType();
-            if ($type instanceof ThisType) {
-                $variables_and_types[$i] = new VariableAndType($variable_type->getVariable(), $type->getStaticObjectType());
+        foreach ($variables_and_types as $i => $variable_and_type) {
+            if ($variable_and_type->type instanceof ThisType) {
+                $variables_and_types[$i] = new VariableAndType($variable_and_type->name, $variable_and_type->type->getStaticObjectType());
             }
         }
 
-        foreach ($variables_and_types as $i => $variable_type) {
-            $type = $variable_type->getType();
-
-            if ($type instanceof ConstantBooleanType || $type instanceof ConstantFloatType || $type instanceof ConstantIntegerType || $type instanceof ConstantStringType) {
-                $variables_and_types[$i] = new VariableAndType($variable_type->getVariable(), $type->generalize(GeneralizePrecision::lessSpecific()));
+        foreach ($variables_and_types as $i => $variable_and_type) {
+            if ($variable_and_type->type instanceof ConstantBooleanType || $variable_and_type->type instanceof ConstantFloatType || $variable_and_type->type instanceof ConstantIntegerType || $variable_and_type->type instanceof ConstantStringType) {
+                $variables_and_types[$i] = new VariableAndType($variable_and_type->name, $variable_and_type->type->generalize(GeneralizePrecision::lessSpecific()));
             }
 
-            if ($type instanceof NullType) {
-                $variables_and_types[$i] = new VariableAndType($variable_type->getVariable(), new MixedType);
+            if ($variable_and_type->type instanceof NullType) {
+                $variables_and_types[$i] = new VariableAndType($variable_and_type->name, new MixedType);
             }
         }
 
@@ -363,8 +360,15 @@ class BladeAnalyser
          * The `varDocNodeFactory` use the result of the `templateVariableTypesResolver` to create the docblock.
          * We will create the [AT]var docblock and add it at the beginning of the file.
          */
-        $doc_nodes = $this->varDocNodeFactory->createDocNodes($variables_and_types);
-        $stmts = array_merge($doc_nodes, $stmts);
+        $doc_nodes = [];
+        foreach ($variables_and_types as $variable_and_type) {
+            $type_as_string = $variable_and_type->type->describe(VerbosityLevel::typeOnly());
+            $doc_nop = new Nop();
+            $doc_nop->setDocComment(new Doc("/** @var {$type_as_string} \${$variable_and_type->name} */"));
+
+            $doc_nodes[$variable_and_type->name] = $doc_nop;
+        }
+        $stmts = array_merge(array_values($doc_nodes), $stmts);
 
         /**
          * The `printerStandard` allows us to convert the array of PHP statements to a real PHP content.
