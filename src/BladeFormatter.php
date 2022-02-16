@@ -42,15 +42,15 @@ class BladeFormatter
             /** @var string */
             $controller_path = $fileSpecificError->getMetadata()['controller_path'] ?? null;
 
-            /** @var null|array<\stdClass> */
+            /** @var null|array<array{file: string, line: int: name: ?string}> */
             $stacktrace = $fileSpecificError->getMetadata()['stacktrace'] ?? null;
 
             if ($view_name && $controller_line && $controller_path && !is_null($stacktrace)) {
                 $key = $view_name;
 
                 foreach (array_reverse($stacktrace) as $stacktrace) {
-                    $file = $stacktrace->name ?? $this->relativePathHelper->getRelativePath($stacktrace->file);
-                    $key .= " ← <fg=gray>{$file}:{$stacktrace->line}</>";
+                    $file = $stacktrace['name'] ?? $this->relativePathHelper->getRelativePath($stacktrace['file']);
+                    $key .= " ← <fg=gray>{$file}:{$stacktrace['line']}</>";
                 }
             } else {
                 $key = $this->relativePathHelper->getRelativePath($fileSpecificError->getFile());

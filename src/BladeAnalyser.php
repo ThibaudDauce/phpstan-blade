@@ -434,7 +434,7 @@ class BladeAnalyser
                     'view_name' => $matches['view_name'],
                     'controller_path' => $scope->getFile(),
                     'controller_line' => $controller_line,
-                    'stacktrace' => json_decode($matches['stacktrace']),
+                    'stacktrace' => json_decode($matches['stacktrace'], associative: true),
                 ])
                 ->build();
             $errors[] = $error;

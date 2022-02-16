@@ -54,7 +54,7 @@ class ViewFactoryMakeMethodRule implements Rule
 
         if ($comment && preg_match('#/\*\* view_name: (?P<view_name>.*), view_path: (?P<view_path>.*), line: (?P<line>\d+), stacktrace: (?P<stacktrace>.*) \*/#', $comment->getText(), $matches)) {
             /** @var array<array{file: string, line: int, name: ?string}> */
-            $stacktrace = json_decode($matches['stacktrace']);
+            $stacktrace = json_decode($matches['stacktrace'], associative: true);
             $stacktrace[] = ['file' => $matches['view_path'], 'line' => $matches['line'], 'name' => $matches['view_name']];
         } else {
             $stacktrace = [

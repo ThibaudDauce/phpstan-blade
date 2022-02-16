@@ -10,11 +10,11 @@
   1      Variable $user might not be defined.                     
  ------ --------------------------------------------------------- 
 
- ------ --------------------------------------------------------------------- 
-  Line   addition ← user:7 ← welcome:35 ← Http/Controllers/Controller.php:23  
- ------ --------------------------------------------------------------------- 
-  1      Binary operation "+" between int and string results in an error.     
- ------ --------------------------------------------------------------------- 
+ ------ ---------------------------------------------------------------------- 
+  Line   addition ← user:14 ← welcome:35 ← Http/Controllers/Controller.php:23  
+ ------ ---------------------------------------------------------------------- 
+  1      Binary operation "+" between int and string results in an error.      
+ ------ ---------------------------------------------------------------------- 
 
  ------ ------------------------------------------------------------------ 
   Line   addition ← welcome:63 ← Http/Controllers/Controller.php:23        
@@ -22,12 +22,13 @@
   1      Binary operation "+" between string and int results in an error.  
  ------ ------------------------------------------------------------------ 
 
- ------ --------------------------------------------------------- 
-  Line   user ← welcome:35 ← Http/Controllers/Controller.php:23   
- ------ --------------------------------------------------------- 
-  3      Access to an undefined property App\Models\User::$di.    
-  3      Access to an undefined property App\Models\User::$oups.  
- ------ --------------------------------------------------------- 
+ ------ ----------------------------------------------------------- 
+  Line   user ← welcome:35 ← Http/Controllers/Controller.php:23     
+ ------ ----------------------------------------------------------- 
+  6      Access to undefined constant App\Models\User::HELLO_WORL.  
+  10     Access to an undefined property App\Models\User::$di.      
+  10     Access to an undefined property App\Models\User::$oups.    
+ ------ ----------------------------------------------------------- 
 
  ------ ---------------------------------------------------------------- 
   Line   welcome ← Http/Controllers/Controller.php:23                    
@@ -45,5 +46,5 @@
   76     Access to undefined constant App\Models\User::HELLO_WORL.       
  ------ ---------------------------------------------------------------- 
 
- [ERROR] Found 15 errors                                                        
+ [ERROR] Found 16 errors                                                        
 
