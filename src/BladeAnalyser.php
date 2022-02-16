@@ -13,7 +13,6 @@ use PhpParser\Node\Stmt;
 use PHPStan\Type\NullType;
 use PHPStan\Type\ThisType;
 use Illuminate\Support\Arr;
-use PHPStan\Analyser\Error;
 use PHPStan\Analyser\Scope;
 use PHPStan\Rules\Registry;
 use PHPStan\Type\MixedType;
@@ -24,7 +23,6 @@ use PHPStan\Rules\RuleError;
 use PHPStan\Type\ObjectType;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Expr\Array_;
-use PHPStan\Type\VerbosityLevel;
 use PhpParser\ConstExprEvaluator;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\ArrayItem;
@@ -39,12 +37,12 @@ use Illuminate\View\ViewFinderInterface;
 use PHPStan\DependencyInjection\Container;
 use PhpParser\ConstExprEvaluationException;
 use Illuminate\View\Compilers\BladeCompiler;
+use PHPStan\Analyser\FileAnalyser;
 use PHPStan\Type\Constant\ConstantFloatType;
 use PHPStan\Type\Constant\ConstantStringType;
 use PHPStan\Type\Constant\ConstantBooleanType;
 use PHPStan\Type\Constant\ConstantIntegerType;
 use Symplify\TemplatePHPStanCompiler\ValueObject\VariableAndType;
-use Symplify\TemplatePHPStanCompiler\PHPStan\FileAnalyserProvider;
 use Symplify\TemplatePHPStanCompiler\NodeFactory\VarDocNodeFactory;
 use ThibaudDauce\PHPStanBlade\PHPVisitors\RemoveEscapeFunctionNodeVisitor;
 use ThibaudDauce\PHPStanBlade\PHPVisitors\AddLoopVarTypeToForeachNodeVisitor;
@@ -57,7 +55,6 @@ class BladeAnalyser
     public function __construct(
         private Container $phpstan_container,
         private ConstExprEvaluator $constExprEvaluator,
-        private FileAnalyserProvider $fileAnalyserProvider,
         private Standard $printerStandard,
         private VarDocNodeFactory $varDocNodeFactory,
         private LaravelContainer $container,
@@ -160,9 +157,6 @@ class BladeAnalyser
 
         foreach ($variables_and_types as $i => $variable_type) {
             $type = $variable_type->getType();
-            if ($variable_type->getVariable() === 'users') {
-                dump($variable_type->getVariable(), get_class($type), $variable_type->getTypeAsString(), $variable_type->getType()->describe(VerbosityLevel::precise()));
-            }
 
             if ($type instanceof ConstantBooleanType || $type instanceof ConstantFloatType || $type instanceof ConstantIntegerType || $type instanceof ConstantStringType) {
                 $variables_and_types[$i] = new VariableAndType($variable_type->getVariable(), $type->generalize(GeneralizePrecision::lessSpecific()));
@@ -385,7 +379,8 @@ class BladeAnalyser
          */
         // echo "[BLADE] {$tabs} Analysing {$tmp_file_path} ({$view_name}) with PHPStan…\n";
         $start = microtime(true);
-        $analyse_result = $this->fileAnalyserProvider->provide()->analyseFile($tmp_file_path, [], $this->phpstan_container->getByType(Registry::class), null); // @phpstan-ignore-line
+        $analyser = $this->phpstan_container->getByType(FileAnalyser::class);
+        $analyse_result = $analyser->analyseFile($tmp_file_path, [], $this->phpstan_container->getByType(Registry::class), null); // @phpstan-ignore-line
         $time = number_format(microtime(true) - $start, 2);
         // echo "[BLADE] {$tabs} End of analyse of {$tmp_file_path} ({$view_name}) in {$time}s.\n";
         
