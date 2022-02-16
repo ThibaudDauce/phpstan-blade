@@ -581,10 +581,10 @@ class BladeAnalyser
                 $scope->resolveName($array_argument->value->class) === Arr::class &&
                 $array_argument->value->name instanceof Identifier &&
                 $array_argument->value->name->name === 'except' &&
-                $array_argument->value->args[0]->value instanceof FuncCall &&
-                $array_argument->value->args[0]->value->name instanceof Name &&
-                $scope->resolveName($array_argument->value->args[0]->value->name) === 'get_defined_vars' &&
-                $array_argument->value->args[1]->value instanceof Array_
+                $array_argument->value->getArgs()[0]->value instanceof FuncCall &&
+                $array_argument->value->getArgs()[0]->value->name instanceof Name &&
+                $scope->resolveName($array_argument->value->getArgs()[0]->value->name) === 'get_defined_vars' &&
+                $array_argument->value->getArgs()[1]->value instanceof Array_
             ) {
                 /**
                  * @todo Check the second argument to except and remove these keys.

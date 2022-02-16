@@ -11,13 +11,13 @@ use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Stmt\Foreach_;
 use PhpParser\NodeVisitorAbstract;
-use Vural\PHPStanBladeRule\ValueObject\Loop;
+use ThibaudDauce\PHPStanBlade\Loop;
 
 class AddLoopVarTypeToForeachNodeVisitor extends NodeVisitorAbstract
 {
     private ?Expr $expr = null;
 
-    private $loop_count = 0;
+    private int $loop_count = 0;
 
     /** @return Node[]|null */
     public function enterNode(Node $node): ?array
@@ -34,15 +34,14 @@ class AddLoopVarTypeToForeachNodeVisitor extends NodeVisitorAbstract
         return null;
     }
 
-    public function leaveNode(Node $node): void
+    /** @return Node[]|null */
+    public function leaveNode(Node $node): ?array
     {
         if ($node instanceof Foreach_) {
             $this->loop_count--;
-
-            if (! $this->loop_count) {
-
-            }
         }
+
+        return null;
     }
 
     private function save_assign(Assign $assign): void
