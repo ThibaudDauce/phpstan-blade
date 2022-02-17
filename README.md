@@ -24,6 +24,31 @@ parameters:
     …
 ```
 
+Add this Composer script to your `composer.json`:
+
+```json
+{
+    "scripts": {
+        "post-root-package-install": [
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+        ],
+        "post-create-project-cmd": [
+            "@php artisan key:generate"
+        ],
+        "post-autoload-dump": [
+            "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
+            "@php artisan package:discover"
+        ],
+        "phpstan": [
+            "@php artisan phpstan-blade:touch-cache",
+            "./vendor/bin/phpstan analyse --error-format blade"
+        ]
+    },
+}
+```
+
+Then, you can run `composer phpstan` to touch the cache (see `TouchCacheCommand` comment if you want to know more about why it's required), and run the analyse with the Blade formatter (the Blade formatter is required to allow showing the stacktrace of the views' includes).
+
 ## Features
 
 - [x] **Analyse `view()` calls**
