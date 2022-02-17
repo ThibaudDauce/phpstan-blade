@@ -65,7 +65,7 @@ class BladeAnalyser
     }
 
     /**
-     * @param array<array{file: string, line: int, name: ?string}> $stacktrace
+     * @param non-empty-array<array{file: string, line: int, name: ?string}> $stacktrace
      * @return array<RuleError>
      */
     public function check(Scope $scope, int $controller_line, Arg $view_name_arg, ?Arg $view_parameters_arg, ?Arg $merge_data_arg, array $stacktrace): array
@@ -203,14 +203,14 @@ class BladeAnalyser
         /**
          * We have the view name, we have the view parameters, let's analyse the Blade content!
          */
-        return $this->process_view($scope, $controller_line, $view_name, $variables_and_types, $stacktrace);
+        return $this->process_view($view_name, $variables_and_types, $stacktrace);
     }
     /**
      * @param VariableAndType[] $variables_and_types
-     * @param array<array{file: string, line: int, name: ?string}> $stacktrace
+     * @param non-empty-array<array{file: string, line: int, name: ?string}> $stacktrace
      * @return array<RuleError>
      */
-    private function process_view(Scope $scope, int $controller_line, string $view_name, array $variables_and_types, array $stacktrace): array
+    private function process_view(string $view_name, array $variables_and_types, array $stacktrace): array
     {
         $tabs = str_repeat("\t", count($stacktrace));
 
@@ -224,7 +224,7 @@ class BladeAnalyser
          * The main complexity is to prepare the file to keep the view name and the file number information (so we can
          * repport the error at the right location).
          */
-        $html_and_php_content = $this->get_php_and_html_content($scope, $view_name, $view_path, $stacktrace);
+        $html_and_php_content = $this->get_php_and_html_content($view_name, $view_path, $stacktrace);
 
         
         /**
@@ -447,7 +447,10 @@ class BladeAnalyser
              * We'll also add some metadata to show a nice error title with the `BladeFormatter` class.
              * @todo When support for @include is added, we'll need a way to show a stack trace of information
              */
+
+             /** @var array<array{file: string, line: int, name: ?string}> */
             $error_stacktrace = json_decode($matches['stacktrace'], associative: true);
+
             $error = RuleErrorBuilder::message($raw_error->getMessage())
                 ->file($error_stacktrace[0]['file'])
                 ->line($matches['line'])
@@ -463,8 +466,8 @@ class BladeAnalyser
          * @todo do not remove e() calls and remove errors about calling e() with int/float/bool
          */
         $errors = array_filter($errors, function (RuleError $error) {
-            return $error->getMessage() !== 'Parameter #1 (Illuminate\Contracts\Support\Htmlable) of echo cannot be converted to string.'
-                && $error->getMessage() !== 'Parameter #1 (Illuminate\Contracts\Support\DeferringDisplayableValue) of echo cannot be converted to string.';
+            return $error->getMessage() !== 'Parameter #1 (Illuminate\Contracts\Support\Htmlable) of echo cannot be converted to string.' // @phpstan-ignore-line
+                && $error->getMessage() !== 'Parameter #1 (Illuminate\Contracts\Support\DeferringDisplayableValue) of echo cannot be converted to string.'; // @phpstan-ignore-line
         });
 
         return $errors;
@@ -487,9 +490,9 @@ class BladeAnalyser
     }
 
     /**
-     * @param array<string, array{file: string, line: int, name: ?string}> $stacktrace
+     * @param non-empty-array<array{file: string, line: int, name: ?string}> $stacktrace
      */
-    private function get_php_and_html_content(Scope $scope, string $view_name, string $view_path, array $stacktrace = []): string
+    private function get_php_and_html_content(string $view_name, string $view_path, array $stacktrace): string
     {
         $tabs = str_repeat("\t", count($stacktrace));
 
@@ -497,7 +500,7 @@ class BladeAnalyser
          * There is some problems with the PHPStan cache, if you want more information go inside the CacheManager class
          * but it's not required to understand the `process_view` function.
          */
-        $this->cache_manager->add_dependency_to_view_file($scope->getFile(), $view_path);
+        $this->cache_manager->add_dependency_to_view_file($stacktrace[0]['file'], $view_path);
 
         /**
          * We get the Blade content, if the file doesn't exists, Larastan should catch this, so we return no errors here.
