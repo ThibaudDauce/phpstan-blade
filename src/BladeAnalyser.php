@@ -447,12 +447,13 @@ class BladeAnalyser
              * We'll also add some metadata to show a nice error title with the `BladeFormatter` class.
              * @todo When support for @include is added, we'll need a way to show a stack trace of information
              */
+            $error_stacktrace = json_decode($matches['stacktrace'], associative: true);
             $error = RuleErrorBuilder::message($raw_error->getMessage())
-                ->file($matches['view_path'])
+                ->file($error_stacktrace[0]['file'])
                 ->line($matches['line'])
                 ->metadata([
                     'view_name' => $matches['view_name'],
-                    'stacktrace' => json_decode($matches['stacktrace'], associative: true),
+                    'stacktrace' => $error_stacktrace,
                 ])
                 ->build();
             $errors[] = $error;
