@@ -36,16 +36,10 @@ class BladeFormatter
             /** @var string */
             $view_name = $fileSpecificError->getMetadata()['view_name'] ?? null;
 
-            /** @var string */
-            $controller_line = $fileSpecificError->getMetadata()['controller_line'] ?? null;
-
-            /** @var string */
-            $controller_path = $fileSpecificError->getMetadata()['controller_path'] ?? null;
-
             /** @var ?array<array{file: string, line: int, name: ?string}> */
             $stacktrace = $fileSpecificError->getMetadata()['stacktrace'] ?? null;
 
-            if ($view_name && $controller_line && $controller_path && !is_null($stacktrace)) {
+            if ($view_name && !is_null($stacktrace)) {
                 $key = $view_name;
 
                 foreach (array_reverse($stacktrace) as $stacktrace) {
