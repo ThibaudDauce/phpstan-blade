@@ -70,9 +70,7 @@ class BladeAnalyser
      */
     public function check(Scope $scope, int $controller_line, Arg $view_name_arg, ?Arg $view_parameters_arg, ?Arg $merge_data_arg, array $stacktrace): array
     {
-        $tabs = str_repeat("\t", count($stacktrace) - 1);
-        // echo "[BLADE] {$tabs} Checking {$scope->getFile()}:{$controller_line}…\n";
-        $tabs = str_repeat("\t", count($stacktrace));
+        $this->log(count($stacktrace) - 1, "Checking {$scope->getFile()}:{$controller_line}…");
 
         /**
          * We will try to find the string behind the first parameter, it could be:
@@ -86,7 +84,7 @@ class BladeAnalyser
         // find the name of the view.
         if (! $view_name) return [];
 
-        // echo "[BLADE] {$tabs} View is {$view_name}\n";
+        $this->log(count($stacktrace), "View is {$view_name}");
 
         /**
          * Here we use the `templateVariableTypesResolver` to transform the view parameters array to a list of 
@@ -212,12 +210,10 @@ class BladeAnalyser
      */
     private function process_view(string $view_name, array $variables_and_types, array $stacktrace): array
     {
-        $tabs = str_repeat("\t", count($stacktrace));
-
         // We use Laravel to find the path to the Blade view.
         $view_path = $this->view_finder()->find($view_name);
 
-        // echo "[BLADE] {$tabs} View path is {$view_path}\n";
+        $this->log(count($stacktrace), "View path is {$view_path}");
 
         /**
          * This function will analyse the Blade view to find errors.
@@ -381,12 +377,12 @@ class BladeAnalyser
         /**
          * Here we use some PHPStan classes (not covered by semver, be careful!) to analyse the file and get the errors.
          */
-        // echo "[BLADE] {$tabs} Analysing {$tmp_file_path} ({$view_name}) with PHPStan…\n";
+        $this->log(count($stacktrace), "Analysing {$tmp_file_path} ({$view_name}) with PHPStan…");
         $start = microtime(true);
         $analyser = $this->phpstan_container->getByType(FileAnalyser::class);
         $analyse_result = $analyser->analyseFile($tmp_file_path, [], $this->phpstan_container->getByType(Registry::class), null); // @phpstan-ignore-line
         $time = number_format(microtime(true) - $start, 2);
-        // echo "[BLADE] {$tabs} End of analyse of {$tmp_file_path} ({$view_name}) in {$time}s.\n";
+        $this->log(count($stacktrace), "End of analyse of {$tmp_file_path} ({$view_name}) in {$time}s.");
         
         $raw_errors = $analyse_result->getErrors(); // @phpstan-ignore-line
 
@@ -530,11 +526,11 @@ class BladeAnalyser
          * Almost each line will have the comment with view name and line number at the beginning
          * but if one Blade line is compiled to multiple PHP lines the comment is only present on the first line.
          */
-        // echo "[BLADE] {$tabs} Compiling {$view_path} with Blade compiler…\n";
+        $this->log(count($stacktrace), "Compiling {$view_path} with Blade compiler…");
         $start = microtime(true);
         $html_and_php_content =  $this->blade_compiler()->compileString($blade_content_with_lines_numbers);
         $time = number_format(microtime(true) - $start, 2);
-        // echo "[BLADE] {$tabs} End of compilation of {$view_path} in {$time}s.\n";
+        $this->log(count($stacktrace), "End of compilation of {$view_path} in {$time}s.");
 
         return $html_and_php_content;
     }
@@ -624,6 +620,14 @@ class BladeAnalyser
             }
 
             return null;
+        }
+    }
+
+    private function log(int $deep, string $message): void
+    {
+        if (in_array('--debug', $_SERVER['argv'])) {
+            $tabs = str_repeat("\t", $deep);
+            echo "[BLADE] {$tabs} {$message}\n";
         }
     }
 }
