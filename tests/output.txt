@@ -5,6 +5,12 @@
  ------ ---------------------------------------------------------------------- 
 
  ------ ------------------------------------------------------------------ 
+  Line   addition ← Http/Controllers/Controller.php:47                     
+ ------ ------------------------------------------------------------------ 
+  1      Binary operation "+" between int and string results in an error.  
+ ------ ------------------------------------------------------------------ 
+
+ ------ ------------------------------------------------------------------ 
   Line   addition ← welcome:73 ← Http/Controllers/Controller.php:28        
  ------ ------------------------------------------------------------------ 
   1      Binary operation "+" between string and int results in an error.  
@@ -48,5 +54,5 @@
   20     Access to an undefined property App\Models\User::$emai.  
  ------ --------------------------------------------------------- 
 
- [ERROR] Found 18 errors                                                        
+ [ERROR] Found 19 errors                                                        
 

@@ -76,7 +76,7 @@ class BladeAnalyser
          * We will try to find the string behind the first parameter, it could be:
          * - view('welcome')                                         a simple constant string 
          * - view($view_name) where $view_name = 'welcome';          a variable with a constant string inside
-         * - view(view_name()) where view_name() return 'welcome'    a function with a constant return
+         * - view(view_name()) where view_name() return 'welcome'    a function with a constant return (not supported right now I think)
          */
         $view_name = $this->evaluate_string($view_name_arg->value, $scope);
 

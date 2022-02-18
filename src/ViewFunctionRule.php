@@ -5,11 +5,11 @@ namespace ThibaudDauce\PHPStanBlade;
 use PhpParser\Node;
 use PHPStan\Rules\Rule;
 use PHPStan\Analyser\Scope;
-use PHPStan\Rules\Registry;
 use PhpParser\Node\Expr\FuncCall;
-use PHPStan\DependencyInjection\Container;
 
 /**
+ * The goal of this Rule is to match the `view()` function call
+ * 
  * @implements Rule<FuncCall>
  */
 class ViewFunctionRule implements Rule
@@ -24,13 +24,16 @@ class ViewFunctionRule implements Rule
     }
 
     /** @inheritDoc */
-    public function processNode(Node $funcCall, Scope $scope): array
+    public function processNode(Node $function_call, Scope $scope): array
     {
-        // We only watch function calls right now.
-        if (! $funcCall instanceof FuncCall) return [];
+        /**
+         * This condition is not require to work because we specify `FuncCall` in `getNodeType()` above
+         * but it helps VSCode to understand and provide auto-completion below.
+         */
+        if (! $function_call instanceof FuncCall) return [];
 
         /**
-         * MATCH VIEW FUNCTION
+         * MATCH VIEW FUNCTION `view()`
          * 
          * First we will try to find the function name to see if it's `view()`.
          * If we cannot find the function name or if the name is not `view`,
@@ -39,17 +42,11 @@ class ViewFunctionRule implements Rule
 
         /**
          * The function name is an expression, hard to find the real string name here…
-         * @todo We could try `evaluate_string` to fetch the name if it's a constant expression, for example:
-         *     $function = 'view';
-         *     {$function}('welcome', []);
-         * But not sure if it's something really useful…
+         * We could try to evaluate the string but do not support this right now. 
          */
-        if (! $funcCall->name instanceof Node\Name) return [];
+        if (! $function_call->name instanceof Node\Name) return [];
 
-        /**
-         * The scope allows us to resolve the real string behind the Node\Name.
-         */
-        $funcName = $scope->resolveName($funcCall->name);
+        $funcName = $scope->resolveName($function_call->name);
         if ($funcName !== 'view') return [];
 
         /**
@@ -58,19 +55,22 @@ class ViewFunctionRule implements Rule
          */
 
         /**
-         * FIND VIEW PARAMETERS
-         * 
-         * Now, we know that we are calling the `view()` function, 
-         * we need to check the function parameters:
-         * - 0 parameter:  the `view()` function without any parameter returns the `ViewFactory` to do something different.
-         * - 1 parameter:  the view has no parameters
-         * - 2 parameters: the view has an array inside the second parameter with parameters.
-         * - more that 2 parameters: it's an error
+         * If we provide no arguments it's not a view render so no errors here.
          */
-        if (empty($funcCall->getArgs())) return [];
+        if (empty($function_call->getArgs())) return [];
 
-        return $this->blade_analyser->check($scope, $funcCall->getLine(), $funcCall->getArgs()[0], $funcCall->getArgs()[1] ?? null, null, [
-            ['file' => $scope->getFile(), 'line' => $funcCall->getLine(), 'name' => null],
-        ]);
+        /**
+         * Let's analyse the view!
+         */
+        return $this->blade_analyser->check(
+            $scope,
+            $function_call->getLine(),
+            view_name_arg: $function_call->getArgs()[0],
+            view_parameters_arg: $function_call->getArgs()[1] ?? null,
+            merge_data_arg: null,
+            stacktrace: [
+                ['file' => $scope->getFile(), 'line' => $function_call->getLine(), 'name' => null],
+            ]
+        );
     }
 }

@@ -20,6 +20,13 @@ class LaravelTest extends TestCase
         $expected_output = file_get_contents(__DIR__ . '/output.txt');
 
         [$output, $duration] = $this->run_phpstan();
+
+        if (getenv('SAVE_RESULT')) {
+            file_put_contents(__DIR__ . '/output.txt', $output);
+            $this->markTestSkipped("Saving result…");
+            return;
+        }
+        
         $this->assertEquals($expected_output, $output);
 
         // Running the analyse a second time show the same errors.

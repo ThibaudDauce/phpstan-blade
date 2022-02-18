@@ -41,6 +41,15 @@ class Controller extends BaseController
         return view()->make('Namespace::welcome')->render();
     }
 
+    public function view_with_a_constant_variable_name(): View
+    {
+        $addition = 'addition';
+        return view($addition, [
+            'a' => 42,
+            'b' => 'Hello World!',
+        ]);
+    }
+
     public function test(): string
     {
         return 'test';
