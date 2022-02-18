@@ -80,14 +80,16 @@ class BladeAnalyser
          */
         $view_name = $this->evaluate_string($view_name_arg->value, $scope);
 
-        // If the first parameter is not constant, we return no errors because we cannot 
-        // find the name of the view.
+        /**
+         * If the first parameter is not constant, we return no errors because we cannot 
+         * find the name of the view.
+         */
         if (! $view_name) return [];
 
         $this->log(count($stacktrace), "View is {$view_name}");
 
         /**
-         * Here we use the `templateVariableTypesResolver` to transform the view parameters array to a list of 
+         * Here we'll transform the view parameters array to a list of 
          * names and types. This array will be use bellow to generate a doc block.
          * 
          * For example, if we have:
@@ -109,14 +111,19 @@ class BladeAnalyser
          * [AT]var string $name
          * [AT]var int $age
          * [At]var Illuminate\Eloquent\Collection<App\Models\User> $users
+         * 
+         * … so that PHPStan could check the PHP code.
          */
-        /** @var array<VariableAndType> */
+
         $variables_and_types = [];
 
-        /**
-         * @todo Fix the incorrect merge priority
-         */
 
+        /**
+         * There is two argument for view parameters, the first one (`$view_parameters_arg`)
+         * has priority over the second (`$merge_data_arg`) because the second is used in Blade
+         * during `@include` to add all defined vars (so if we pass ['a' => 1] as parameter, we do
+         * not want to get the value of the local `$a` inside the `@include`)
+         */
         $data = $this->get_variables_and_types_from_arg($scope, $view_parameters_arg);
         if ($data) {
             $variables_and_types = array_merge($variables_and_types, $data);
@@ -124,51 +131,41 @@ class BladeAnalyser
 
         $merge_data = $this->get_variables_and_types_from_arg($scope, $merge_data_arg);
         if ($merge_data) {
-            $variables_and_types = array_merge($variables_and_types, $merge_data);
-        }
-            
-        /**
-         * If the view parameters contains `$this` the type found by `templateVariableTypesResolver` is incorrect.
-         *
-         * For example, inside a `Invoice` model:
-         * return view('invoice', [
-         *     'invoice' => $this,
-         * ]);
-         * 
-         * `templateVariableTypesResolver` will return:
-         *  new VariableAndType('invoice', ThisType<Invoice>)
-         * 
-         * And generate a docblock:
-         * [AT]var $this(Invoice) $invoice
-         * 
-         * This docblock is incorrect so we need to replace the `ThisType<Invoice>` by just `Invoice` to have the correct docblock:
-         * [AT]var Invoice $invoice
-         * 
-         * The method ThisType::getStaticObjectType() returns the type of the object inside `ThisType`.
-         */
-        foreach ($variables_and_types as $i => $variable_and_type) {
-            if ($variable_and_type->type instanceof ThisType) {
-                $variables_and_types[$i] = new VariableAndType($variable_and_type->name, $variable_and_type->type->getStaticObjectType());
+            foreach ($merge_data as $variable_name => $variable_and_type) {
+                if (isset($data[$variable_name])) continue;
+                $data[$variable_name] = $variable_and_type;
             }
         }
 
-        foreach ($variables_and_types as $i => $variable_and_type) {
+
+        /**
+         * If inside a controller we return a `view()` with a constant type like:
+         * ```
+         * view('welcome', [
+         *     'web' => true,
+         * ]);
+         * ```
+         * 
+         * It doesn't mean that the view will always be called with `true` so PHPStan should not report "If condition is always true." errors.
+         * Here we transform all constant types to their inner type (`true` will become `bool`). See README :ConstantTypes for more information about this problem.
+         */
+        foreach ($variables_and_types as $name => $variable_and_type) {
             if ($variable_and_type->type instanceof ConstantBooleanType || $variable_and_type->type instanceof ConstantFloatType || $variable_and_type->type instanceof ConstantIntegerType || $variable_and_type->type instanceof ConstantStringType) {
-                $variables_and_types[$i] = new VariableAndType($variable_and_type->name, $variable_and_type->type->generalize(GeneralizePrecision::lessSpecific()));
+                $variables_and_types[$name] = new VariableAndType($variable_and_type->name, $variable_and_type->type->generalize(GeneralizePrecision::lessSpecific()));
             }
 
             if ($variable_and_type->type instanceof NullType) {
-                $variables_and_types[$i] = new VariableAndType($variable_and_type->name, new MixedType);
+                $variables_and_types[$name] = new VariableAndType($variable_and_type->name, new MixedType);
             }
         }
 
-
         /**
          * Laravel provides/uses some variables in all the views. Let's add them to the available variables.
+         * I don't know what happen if we pass these variables to our views (maybe only adding them if they're not already present?) @todo
          */
-        $variables_and_types[] = new VariableAndType('__env', new ObjectType(Factory::class));
-        $variables_and_types[] = new VariableAndType('errors', new ObjectType(ViewErrorBag::class));
-        $variables_and_types[] = new VariableAndType('component', new ObjectType(AnonymousComponent::class));
+        $variables_and_types['__env']     = new VariableAndType('__env', new ObjectType(Factory::class));
+        $variables_and_types['errors']    = new VariableAndType('errors', new ObjectType(ViewErrorBag::class));
+        $variables_and_types['component'] = new VariableAndType('component', new ObjectType(AnonymousComponent::class));
 
         /**
          * LIVEWIRE MANAGEMENT
@@ -188,12 +185,12 @@ class BladeAnalyser
                 $class_name = $class->getName();
 
                 // The `$this` variable is available inside the view.
-                $variables_and_types[] = new VariableAndType('this', new ObjectType($class_name));
+                $variables_and_types['this'] = new VariableAndType('this', new ObjectType($class_name));
 
                 // All public properties of the class are available to the view.
                 $properties = $class->getNativeReflection()->getProperties(ReflectionProperty::IS_PUBLIC);
                 foreach ($properties as $property) {
-                    $variables_and_types[] = new VariableAndType($property->name, $class->getProperty($property->name, $scope)->getReadableType());
+                    $variables_and_types[$property->name] = new VariableAndType($property->name, $class->getProperty($property->name, $scope)->getReadableType());
                 }
             }
         }
@@ -353,14 +350,12 @@ class BladeAnalyser
         ]);
 
         /**
-         * The `varDocNodeFactory` use the result of the `templateVariableTypesResolver` to create the docblock.
          * We will create the [AT]var docblock and add it at the beginning of the file.
          */
         $doc_nodes = [];
         foreach ($variables_and_types as $variable_and_type) {
-            $type_as_string = $variable_and_type->type->describe(VerbosityLevel::typeOnly());
             $doc_nop = new Nop();
-            $doc_nop->setDocComment(new Doc("/** @var {$type_as_string} \${$variable_and_type->name} */"));
+            $doc_nop->setDocComment(new Doc("/** @var {$variable_and_type->get_type_as_string()} \${$variable_and_type->name} */"));
 
             $doc_nodes[$variable_and_type->name] = $doc_nop;
         }
@@ -394,6 +389,10 @@ class BladeAnalyser
         $php_content_lines = explode(PHP_EOL, $php_content);
         $errors = [];
         foreach ($raw_errors as $raw_error) {
+            /**
+             * If we already have the `view_name` information it means we're getting an error from an inner view (`@include`)
+             * so we just need to convert this `Error` to a `RuleError` by copying all its information.
+             */
             if ($raw_error->getMetadata()['view_name'] ?? null) {
                 if (! $line = $raw_error->getLine()) throw new Exception("Receive a view error without line number");
 
@@ -441,7 +440,6 @@ class BladeAnalyser
             /**
              * We'll create a new error with the view file path and the view file number.
              * We'll also add some metadata to show a nice error title with the `BladeFormatter` class.
-             * @todo When support for @include is added, we'll need a way to show a stack trace of information
              */
 
              /** @var array<array{file: string, line: int, name: ?string}> */
@@ -490,8 +488,6 @@ class BladeAnalyser
      */
     private function get_php_and_html_content(string $view_name, string $view_path, array $stacktrace): string
     {
-        $tabs = str_repeat("\t", count($stacktrace));
-
         /**
          * There is some problems with the PHPStan cache, if you want more information go inside the CacheManager class
          * but it's not required to understand the `process_view` function.
@@ -567,7 +563,7 @@ class BladeAnalyser
     }
 
     /**
-     * @return array<VariableAndType>
+     * @return array<string, VariableAndType>
      */
     private function get_variables_and_types_from_arg(Scope $scope, ?Arg $array_argument): ?array
     {
@@ -585,7 +581,7 @@ class BladeAnalyser
 
                 $type = $scope->getType($array_item->value);
 
-                $result[] = new VariableAndType($key, $type);
+                $result[$key] = new VariableAndType($key, $type);
             }
 
             return $result;
@@ -614,7 +610,7 @@ class BladeAnalyser
 
                 $result = [];
                 foreach ($scope->getDefinedVariables() as $variable_name) {
-                    $result[] = new VariableAndType($variable_name, $scope->getVariableType($variable_name));
+                    $result[$variable_name] = new VariableAndType($variable_name, $scope->getVariableType($variable_name));
                 }
                 return $result;
             }

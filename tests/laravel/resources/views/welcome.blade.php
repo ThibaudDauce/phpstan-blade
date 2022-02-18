@@ -65,10 +65,18 @@
     {{ $constant_int }}
     {{ $constant_int + $constant_string }}
 
+    @php
+        $a = [1, 2, 3];
+    @endphp
+
     @include('addition', [
         'a' => $constant_int,
         'b' => $constant_int,
     ])
+
+    {{-- $a should be an array here --}}
+    @foreach ($a as $inside)
+    @endforeach
 
     @include(
         'addition',

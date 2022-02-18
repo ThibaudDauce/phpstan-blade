@@ -84,7 +84,7 @@ You need to specify the variable name inside the docblock because we add docbloc
 {{ $name }}
 ```
 
-### Constant types
+### Constant types (:ConstantTypes)
 
 Right now, if you pass `true` to a view, the type is generalize to `bool` to avoid errors like "If condition is always true.". It could be nice to have a way to raise an error if all `view()` calls pass `true` that the condition is always true. But I think it's hard to implement.
 
