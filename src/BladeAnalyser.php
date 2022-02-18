@@ -65,7 +65,7 @@ class BladeAnalyser
     }
 
     /**
-     * @param non-empty-array<array{file: string, line: int, name: ?string}> $stacktrace
+     * @phpstan-param non-empty-array<array{file: string, line: int, name: ?string}> $stacktrace
      * @return array<RuleError>
      */
     public function check(Scope $scope, int $controller_line, Arg $view_name_arg, ?Arg $view_parameters_arg, ?Arg $merge_data_arg, array $stacktrace): array
@@ -207,7 +207,7 @@ class BladeAnalyser
     }
     /**
      * @param VariableAndType[] $variables_and_types
-     * @param non-empty-array<array{file: string, line: int, name: ?string}> $stacktrace
+     * @phpstan-param non-empty-array<array{file: string, line: int, name: ?string}> $stacktrace
      * @return array<RuleError>
      */
     private function process_view(string $view_name, array $variables_and_types, array $stacktrace): array
@@ -490,7 +490,7 @@ class BladeAnalyser
     }
 
     /**
-     * @param non-empty-array<array{file: string, line: int, name: ?string}> $stacktrace
+     * @phpstan-param non-empty-array<array{file: string, line: int, name: ?string}> $stacktrace
      */
     private function get_php_and_html_content(string $view_name, string $view_path, array $stacktrace): string
     {

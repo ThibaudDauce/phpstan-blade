@@ -25,12 +25,12 @@ class LaravelTest extends TestCase
         // Running the analyse a second time show the same errors.
         [$output, $duration] = $this->run_phpstan();
         $this->assertEquals($expected_output, $output);
-        $this->assertTrue($duration < 1);
+        $this->assertTrue($duration < 1, "The 2nd analyse was longer than 1s ({$duration}s).");
 
         touch(__DIR__ . '/laravel/resources/views/addition.blade.php');
         [$output, $duration] = $this->run_phpstan();
         $this->assertEquals($expected_output, $output);
-        $this->assertTrue($duration > 1);
+        $this->assertTrue($duration > 1, "The 3rd analyse was faster than 1s ({$duration}s).");
     }
 
     /**
