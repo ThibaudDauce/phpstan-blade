@@ -21,7 +21,7 @@
     "minimum-stability": "dev",
     "prefer-stable": true,
     "require": {
-        "laravel/framework": "^9.0",
+        "laravel/framework": "^9.0 || ^10.0",
         "phpstan/phpstan": "^1.4",
         "nikic/php-parser": "^4.13"
     },
